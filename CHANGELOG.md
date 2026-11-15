@@ -4,6 +4,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+## [0.5.0] - 2026-11-15
+
 ### 追加
 
 - 訪問数・国・流入元を知るために、Cloudflare Web Analytics による匿名のアクセス計測を入れました。Cookie は使いません。URL に入る地点(緯度・経度・地名)は記録されません。
@@ -80,7 +82,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.4.0...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.5.0...HEAD
+[0.5.0]: https://github.com/kazweda/finestella/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kazweda/finestella/releases/tag/v0.4.0
 [0.3.0]: https://github.com/kazweda/finestella/releases/tag/v0.3.0
 [0.2.0]: https://github.com/kazweda/finestella/releases/tag/v0.2.0
