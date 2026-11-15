@@ -66,6 +66,12 @@
   const CLOUD_ATTRIBUTION = '雲量 <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>'
     + '(<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>)';
 
+  // 凡例は出典と同じ右下の枠に積む。地図の幅が狭いと出典が折り返して高くなるが、
+  // 同じ枠に入れておけば凡例はその上に押し上げられ、重ならない。
+  const legend = L.control({ position: 'bottomright' });
+  legend.onAdd = () => document.querySelector('.legend');
+  legend.addTo(map);
+
   const pinIcon = L.divIcon({ className: 'pin', html: '<div class="arrow" hidden></div><div class="dot"></div>', iconSize: [0, 0] });
   let marker = null;
   let overlay = null;
