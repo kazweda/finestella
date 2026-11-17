@@ -102,7 +102,7 @@ h2 { margin: 22px 0 8px; font-size: 13px; font-weight: 600; color: var(--muted);
 .controls { display: flex; gap: 6px; align-items: center; margin-top: 8px; }
 .controls input { flex: 1; min-width: 0; accent-color: var(--accent); height: 40px; }
 .controls button { flex: none; }
-footer { margin-top: 20px; font-size: 12px; color: var(--muted); }
+footer { margin-top: 28px; padding-top: 14px; border-top: 1px solid var(--line); font-size: 12px; color: var(--muted); }
 footer p { margin: 4px 0; }
 footer .support { margin-top: 14px; padding-top: 10px; border-top: 1px solid var(--line); }
 footer .version { margin-top: 8px; font-variant-numeric: tabular-nums; }
