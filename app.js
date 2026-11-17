@@ -19,9 +19,9 @@
   const MAX_AGE_MS = 30 * 60 * 1000; // これより古い予報は取り直す
 
   const LAYERS = [
-    { key: 'cloud_cover_low', label: '下層', windLevel: '850hPa', height: '約1.5km' },
-    { key: 'cloud_cover_mid', label: '中層', windLevel: '500hPa', height: '約5.5km' },
-    { key: 'cloud_cover_high', label: '上層', windLevel: '300hPa', height: '約9km' },
+    { key: 'cloud_cover_low', label: '下層', windLevel: '850hPa' },
+    { key: 'cloud_cover_mid', label: '中層', windLevel: '500hPa' },
+    { key: 'cloud_cover_high', label: '上層', windLevel: '300hPa' },
   ];
   const HOURLY_VARS = ['cloud_cover', ...LAYERS.map((l) => l.key),
     ...LAYERS.flatMap((l) => [`wind_speed_${l.windLevel}`, `wind_direction_${l.windLevel}`])];
@@ -29,7 +29,7 @@
   const $ = (id) => document.getElementById(id);
   const el = {
     place: $('place'), time: $('time'), status: $('status'), statusText: $('status-text'), retry: $('retry'), total: $('total'), layers: $('layers'),
-    flow: $('flow'), winds: $('winds'), windows: $('windows'), timeline: $('timeline'),
+    flow: $('flow'), windows: $('windows'), timeline: $('timeline'),
     slider: $('slider'), play: $('play'), now: $('now'),
     search: $('search'), searchInput: $('search-input'), searchResults: $('search-results'),
     fetched: $('fetched'),
@@ -463,27 +463,6 @@
       dd.textContent = value == null ? '—' : `${Math.round(value)}%`;
       row.append(dt, bar, dd);
       return row;
-    }));
-
-    el.winds.replaceChildren(...[...LAYERS].reverse().map((layer) => {
-      const speed = hourly[`wind_speed_${layer.windLevel}`][i];
-      const flow = windFlow(hourly[`wind_direction_${layer.windLevel}`][i]);
-      const li = document.createElement('li');
-      const arrow = document.createElement('span');
-      arrow.className = 'dir';
-      arrow.textContent = '↑';
-      arrow.setAttribute('aria-hidden', 'true');
-      if (flow) arrow.style.transform = `rotate(${flow.arrowDeg}deg)`;
-      const name = document.createElement('span');
-      name.className = 'name';
-      name.textContent = `${layer.label} ${layer.height}`;
-      const text = document.createElement('span');
-      text.textContent = flow ? `${flow.from} → ${flow.to}` : '—';
-      const sp = document.createElement('span');
-      sp.className = 'speed';
-      sp.textContent = speed == null ? '' : `${Math.round(speed)} m/s`;
-      li.append(arrow, name, text, sp);
-      return li;
     }));
 
     // 最も雲の多い層の風を、目的地の雲の動きの目安として示す。
