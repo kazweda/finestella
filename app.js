@@ -154,11 +154,14 @@
     }
   }
 
-  function forecastUrl(latitude, longitude, hourly, timezone) {
+  // bust: URL の末尾に時刻を足し、前と別の URL にする(「再読み込み」用)。
+  // 配信元で応答しなくなったリクエストと同じ URL を送ると、同じように応答しないことがあるため。
+  function forecastUrl(latitude, longitude, hourly, timezone, bust = false) {
     const params = new URLSearchParams({
       latitude, longitude, hourly: hourly.join(','), timezone,
       forecast_days: FORECAST_DAYS, wind_speed_unit: 'ms',
     });
+    if (bust) params.set('_', Date.now());
     return `${API}?${params}`;
   }
 
@@ -169,11 +172,11 @@
   const gridCache = new Map();
   const isFresh = (entry) => entry && Date.now() - entry.at < MAX_AGE_MS;
 
-  async function fetchForecast(place, signal) {
+  async function fetchForecast(place, signal, { bust = false } = {}) {
     const centerKey = `${place.lat.toFixed(2)},${place.lon.toFixed(2)}`;
     let centerEntry = centerCache.get(centerKey);
     if (!isFresh(centerEntry)) {
-      centerEntry = { data: await fetchJson(forecastUrl(place.lat, place.lon, HOURLY_VARS, 'auto'), signal), at: Date.now() };
+      centerEntry = { data: await fetchJson(forecastUrl(place.lat, place.lon, HOURLY_VARS, 'auto', bust), signal), at: Date.now() };
       centerCache.set(centerKey, centerEntry);
     }
     const center = centerEntry.data;
@@ -188,7 +191,7 @@
       const list = await fetchJson(forecastUrl(
         grid.points.map((p) => p.lat).join(','),
         grid.points.map((p) => p.lon).join(','),
-        ['cloud_cover'], center.timezone,
+        ['cloud_cover'], center.timezone, bust,
       ), signal);
       if (!Array.isArray(list) || list.length !== grid.points.length
         || list.some((p) => p.hourly.time.length !== time.length || p.hourly.time[0] !== time[0])) {
@@ -252,14 +255,14 @@
     clearTimeout(retryCooldown);
     retryCooldown = setTimeout(() => { el.retry.disabled = false; }, RETRY_COOLDOWN_MS);
     showStatus('雲の予報を読み込んでいます…', false, { retry: true });
-    load(state.place);
+    load(state.place, { bust: true });
   });
 
-  async function load(place) {
+  async function load(place, { bust = false } = {}) {
     const controller = new AbortController();
     loadController = controller;
     try {
-      const data = await fetchForecast(place, controller.signal);
+      const data = await fetchForecast(place, controller.signal, { bust });
       if (controller.signal.aborted) return;
       apply(place, data);
       hideStatus();
