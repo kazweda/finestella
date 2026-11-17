@@ -87,11 +87,7 @@ h2 { margin: 22px 0 8px; font-size: 13px; font-weight: 600; color: var(--muted);
 .bar i { display: block; height: 100%; background: #fff; }
 .flow { margin: 12px 0 0; min-height: 1.6em; }
 
-.winds, .windows { list-style: none; margin: 0; padding: 0; }
-.winds li { display: grid; grid-template-columns: 22px 92px 1fr auto; gap: 6px; align-items: center; padding: 4px 0; font-size: 14px; }
-.winds .dir { display: inline-block; color: var(--accent); text-align: center; }
-.winds .name { color: var(--muted); font-size: 13px; }
-.winds .speed { font-variant-numeric: tabular-nums; }
+.windows { list-style: none; margin: 0; padding: 0; }
 .windows li { padding: 6px 10px; margin-bottom: 5px; border-radius: 8px; background: var(--surface); font-variant-numeric: tabular-nums; }
 .windows li.none { background: none; padding: 0; color: var(--muted); }
 .windows small { color: var(--muted); margin-left: 6px; white-space: nowrap; }
@@ -121,8 +117,10 @@ a { color: var(--accent); }
   .panel { padding-top: 58px; }
 }
 
+/* 画面が狭いときは地図の下にパネルを並べる。地図は上端に固定し、
+   パネルをスクロールしても、再生やスライダーで動かす雲を見られるようにする。 */
 @media (max-width: 800px) {
   .layout { display: block; height: auto; }
-  .map-pane { height: 52dvh; }
+  .map-pane { position: sticky; top: 0; z-index: 1; height: 40dvh; }
   .panel { border-left: 0; border-top: 1px solid var(--line); padding: 16px; overflow: visible; }
 }
