@@ -4,9 +4,12 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+## [0.5.1] - 2026-11-17
+
 ### 修正
 
-- 予報の配信元(Open-Meteo)に接続できなかったとき、「再読み込み」を押しても同じように失敗し続けることがあったのを軽減しました。再読み込みでは、前回と別の URL で予報を取り直します。リクエストの回数は増えません。
+- 予報を読み込んでいる間に「再読み込み」ボタンが表示され、押せてしまうことがあったのを直しました。
+- 予報の配信元(Open-Meteo)に接続できなかったときの「再読み込み」で、前回と別の URL で予報を取り直すようにしました。リクエストの回数は増えません。
 
 ## [0.5.0] - 2026-11-15
 
@@ -86,7 +89,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.5.1...HEAD
+[0.5.1]: https://github.com/kazweda/finestella/releases/tag/v0.5.1
 [0.5.0]: https://github.com/kazweda/finestella/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kazweda/finestella/releases/tag/v0.4.0
 [0.3.0]: https://github.com/kazweda/finestella/releases/tag/v0.3.0
