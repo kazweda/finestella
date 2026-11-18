@@ -79,3 +79,28 @@ PR を作るときは、利用者に関わる変更を [CHANGELOG.md](../CHANGEL
    gh release create v0.x.y --title v0.x.y --notes-file <該当する版の内容を書いたファイル>
    ```
 8. **公開サイトで確かめる**:配信が終わったら https://finestella.com/ を開き、フッターに新しい番号が出ていること、地図・検索・予報が動くことを確かめる
+
+## 予報の中継(Cloudflare Workers)
+
+アプリは予報を `https://api.finestella.com/v1/forecast`(中継)から取り、中継が Open-Meteo から取得します。ブラウザから Open-Meteo に直接つなぐと、しばらくぶりに接続する端末で数分〜十数分つながらないことがあるためです(#57)。中継に届かないときや中継が失敗したときは、アプリが Open-Meteo に直接取りに行きます。
+
+- コードは [worker/](../worker/)。中身は `worker/src/proxy.js`、テストは [test/worker.test.js](../test/worker.test.js)
+- 同じ予報は10分間キャッシュから返す。Open-Meteo が応答しないときは、6時間以内のキャッシュを返す
+- キャッシュから返したときも、画面の「◯:◯ 取得」は中継が Open-Meteo から取得した時刻になる
+- 無料プランの範囲で動く(1日10万リクエストまで)
+
+**中継は `main` にマージしても自動では配信されません。** `worker/` を変えたときは、手元から配信します。
+
+```sh
+cd worker
+npx wrangler login   # 初回だけ。ブラウザで Cloudflare にログインする
+npx wrangler deploy
+```
+
+初回の配信で `api.finestella.com` が Workers に割り当てられます(finestella.com は Cloudflare の DNS で管理しているため)。配信したら、次のように確かめます。
+
+```sh
+curl -s -o /dev/null -D - -H 'Origin: https://finestella.com' 'https://api.finestella.com/v1/forecast?latitude=36&longitude=138&hourly=cloud_cover' | grep -i x-cache
+```
+
+1回目は `X-Cache: MISS`、すぐもう一度送ると `X-Cache: HIT` になります。
