@@ -21,14 +21,16 @@ function setup({ upstream = () => new Response('{"ok":1}', { headers: { 'Content
   const calls = [];
   let time = 1_000_000_000;
   const pending = [];
+  const logs = [];
   const env = {
     cache,
     fetch: async (url, init) => { calls.push(url); return upstream(url, init, calls.length); },
     waitUntil: (p) => pending.push(p),
     now: () => time,
+    log: (entry) => logs.push(entry),
   };
   return {
-    cache, calls, env,
+    cache, calls, env, logs,
     advance: (ms) => { time += ms; },
     settle: () => Promise.all(pending.splice(0)),
   };
@@ -148,6 +150,44 @@ test('FineStella と手元の開発環境以外からの利用は断る', async 
   assert.equal((await handle(get('latitude=36', null), s.env)).status, 403);
   assert.equal((await handle(get('latitude=36', 'http://localhost:8000'), s.env)).status, 200);
   assert.equal(s.calls.length, 1);
+});
+
+test('1件ごとに、返したステータスと相手の国・回線の組織名・ブラウザを記録する', async () => {
+  const { handle } = await load();
+  const s = setup();
+  const req = new Request(`${BASE}?latitude=36.123&longitude=138.456`, {
+    headers: { Origin: ORIGIN, 'User-Agent': 'Mozilla/5.0 (iPhone)', 'CF-Connecting-IP': '203.0.113.7' },
+  });
+  req.cf = { country: 'JP', asn: 2516, asOrganization: 'KDDI', colo: 'KIX', clientTcpRtt: 12 };
+  await handle(req, s.env);
+  assert.deepEqual(s.logs, [{
+    status: 200,
+    method: 'GET',
+    path: '/v1/forecast',
+    origin: ORIGIN,
+    userAgent: 'Mozilla/5.0 (iPhone)',
+    country: 'JP',
+    asn: 2516,
+    asOrganization: 'KDDI',
+    colo: 'KIX',
+    cache: 'MISS',
+  }]);
+  // IP アドレスと緯度・経度(利用者の場所)は残さない
+  const text = JSON.stringify(s.logs);
+  assert.doesNotMatch(text, /203\.0\.113\.7/);
+  assert.doesNotMatch(text, /36\.123|138\.456/);
+});
+
+test('断ったリクエストも、送られてきたパスとともに記録する', async () => {
+  const { handle } = await load();
+  const s = setup();
+  await handle(new Request('https://api.finestella.com/.env', { headers: { 'User-Agent': 'x'.repeat(500) } }), s.env);
+  assert.equal(s.logs.length, 1);
+  assert.equal(s.logs[0].status, 403);
+  assert.equal(s.logs[0].path, '/.env');
+  assert.equal(s.logs[0].origin, null);
+  assert.equal(s.logs[0].country, null);
+  assert.equal(s.logs[0].userAgent.length, 200);
 });
 
 test('予報以外の API は中継しない', async () => {

@@ -53,7 +53,33 @@ function forecastResponse(body, fetchedAt, cacheStatus, origin) {
   });
 }
 
-export async function handle(request, { cache, fetch: fetchFn, waitUntil, now = Date.now }) {
+const MAX_USER_AGENT = 200;
+
+// 1件ごとの記録(Workers Logs で見る)。正規の利用か、スキャンなどの機械的なアクセスかを見分けるために残す。
+// IP アドレスと検索条件(緯度・経度=利用者の場所)は残さない。相手は国と回線の組織名までで見分ける。
+export function accessLog(request, response) {
+  const cf = request.cf ?? {};
+  return {
+    status: response.status,
+    method: request.method,
+    path: new URL(request.url).pathname,
+    origin: request.headers.get('Origin'),
+    userAgent: request.headers.get('User-Agent')?.slice(0, MAX_USER_AGENT) ?? null,
+    country: cf.country ?? null,
+    asn: cf.asn ?? null,
+    asOrganization: cf.asOrganization ?? null,
+    colo: cf.colo ?? null,
+    cache: response.headers.get('X-Cache'),
+  };
+}
+
+export async function handle(request, env) {
+  const response = await respond(request, env);
+  (env.log ?? console.log)(accessLog(request, response));
+  return response;
+}
+
+async function respond(request, { cache, fetch: fetchFn, waitUntil, now = Date.now }) {
   const origin = request.headers.get('Origin');
   if (!origin || !ALLOWED_ORIGIN.test(origin)) return new Response('Forbidden', { status: 403 });
   if (request.method === 'OPTIONS') {

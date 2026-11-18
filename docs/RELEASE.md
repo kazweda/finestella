@@ -104,3 +104,10 @@ curl -s -o /dev/null -D - -H 'Origin: https://finestella.com' 'https://api.fines
 ```
 
 1回目は `X-Cache: MISS`、すぐもう一度送ると `X-Cache: HIT` になります。
+
+### アクセスの記録
+
+中継は1件ごとに、返したステータス・パス・Origin・User-Agent・国・回線の組織名(`asOrganization`)・受けた拠点(`colo`)を Workers Logs に残します。Cloudflare のダッシュボードで Workers の `finestella-api` →「Observability」から見られます。IP アドレスと緯度・経度(利用者の場所)は残しません。
+
+- 正規の利用: `status` 200、`origin` が `https://finestella.com`、ブラウザの User-Agent、家庭用回線や携帯会社の組織名
+- スキャンなど: `status` 403 / 404、`/.env` や `/wp-login.php` などのパス、データセンター(クラウド事業者)の組織名
