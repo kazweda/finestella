@@ -8,3 +8,7 @@ workers_dev = false
 routes = [
   { pattern = "api.finestella.com", custom_domain = true },
 ]
+
+# 1件ごとの記録を Workers Logs に残す(ダッシュボードの「Observability」で見る)。
+[observability]
+enabled = true
