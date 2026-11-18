@@ -4,9 +4,7 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
-### 修正
-
-- アプリを開いたときに、予報が数分から十数分読み込めないことが多かったのを改善しました。予報を FineStella の中継から取得するようにし、配信元(Open-Meteo)に直接つながりにくい状態を避けます。中継が使えないときは、これまでどおり配信元から直接取得します。
+## [0.6.0] - 2026-11-18
 
 ### 変更
 
@@ -15,6 +13,10 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 ### 削除
 
 - 「雲の流れ」の欄(上層・中層・下層ごとの風)をなくしました。雲の流れる向きと速さは、全雲量の下の一文で、雲の最も多い層について示しています。
+
+### 修正
+
+- アプリを開いたときに、予報が数分から十数分読み込めないことが多かったのを改善しました。予報を FineStella の中継から取得するようにし、配信元(Open-Meteo)に直接つながりにくい状態を避けます。中継が使えないときは、これまでどおり配信元から直接取得します。
 
 ## [0.5.1] - 2026-11-17
 
@@ -101,7 +103,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.5.1...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.6.0...HEAD
+[0.6.0]: https://github.com/kazweda/finestella/releases/tag/v0.6.0
 [0.5.1]: https://github.com/kazweda/finestella/releases/tag/v0.5.1
 [0.5.0]: https://github.com/kazweda/finestella/releases/tag/v0.5.0
 [0.4.0]: https://github.com/kazweda/finestella/releases/tag/v0.4.0
