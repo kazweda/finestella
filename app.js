@@ -6,6 +6,8 @@
     rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
+  // 予報は中継(worker/)から取り、だめなら Open-Meteo に直接取りに行く(#57)。
+  const API_PROXY = 'https://api.finestella.com/v1/forecast';
   const API = 'https://api.open-meteo.com/v1/forecast';
   const GEOCODE = 'https://geocoding-api.open-meteo.com/v1/search';
   const GSI_SEARCH = 'https://msearch.gsi.go.jp/address-search/AddressSearch';
@@ -124,6 +126,10 @@
 
   // signal で中断されたときだけ AbortError を投げる。時間切れは通信の失敗として扱う。
   async function fetchJson(url, signal) {
+    return (await requestJson(url, signal)).data;
+  }
+
+  async function requestJson(url, signal) {
     const controller = new AbortController();
     const onAbort = () => controller.abort();
     if (signal) {
@@ -142,7 +148,7 @@
       if (res.status === 429) throw new DataError('リクエストが多すぎます。少し待ってからお試しください。');
       if (!res.ok) throw new DataError(`データを取得できませんでした(HTTP ${res.status})。時間をおいてお試しください。`);
       try {
-        return await res.json();
+        return { data: await res.json(), headers: res.headers };
       } catch (err) {
         if (signal?.aborted) throw err;
         if (controller.signal.aborted) throw new NetworkError(navigator.onLine === false);
@@ -156,13 +162,26 @@
 
   // bust: URL の末尾に時刻を足し、前と別の URL にする(「再読み込み」用)。
   // 配信元で応答しなくなったリクエストと同じ URL を送ると、同じように応答しないことがあるため。
-  function forecastUrl(latitude, longitude, hourly, timezone, bust = false) {
+  function forecastQuery(latitude, longitude, hourly, timezone, bust = false) {
     const params = new URLSearchParams({
       latitude, longitude, hourly: hourly.join(','), timezone,
       forecast_days: FORECAST_DAYS, wind_speed_unit: 'ms',
     });
     if (bust) params.set('_', Date.now());
-    return `${API}?${params}`;
+    return params.toString();
+  }
+
+  // 返す at は予報を取得した時刻。中継がキャッシュから返したときは、中継が Open-Meteo から取得した時刻。
+  // 中継の失敗(429 を含む)では Open-Meteo に直接取りに行く。中継の送信元は他の利用者と共用で、回数制限に当たることがあるため。
+  async function fetchForecastJson(query, signal) {
+    try {
+      const { data, headers } = await requestJson(`${API_PROXY}?${query}`, signal);
+      const at = Number(headers.get('X-Fetched-At'));
+      return { data, at: at > 0 ? Math.min(at, Date.now()) : Date.now() };
+    } catch (err) {
+      if (signal?.aborted || (err instanceof NetworkError && err.offline)) throw err;
+    }
+    return { data: await fetchJson(`${API}?${query}`, signal), at: Date.now() };
   }
 
   // 目的地(1地点)と周辺の雲(格子の49地点)は別々にキャッシュする。
@@ -176,7 +195,7 @@
     const centerKey = `${place.lat.toFixed(2)},${place.lon.toFixed(2)}`;
     let centerEntry = centerCache.get(centerKey);
     if (!isFresh(centerEntry)) {
-      centerEntry = { data: await fetchJson(forecastUrl(place.lat, place.lon, HOURLY_VARS, 'auto', bust), signal), at: Date.now() };
+      centerEntry = await fetchForecastJson(forecastQuery(place.lat, place.lon, HOURLY_VARS, 'auto', bust), signal);
       centerCache.set(centerKey, centerEntry);
     }
     const center = centerEntry.data;
@@ -188,7 +207,7 @@
     const gridKey = `${grid.key},${center.timezone}`;
     let gridEntry = gridCache.get(gridKey);
     if (!isFresh(gridEntry) || gridEntry.time[0] !== time[0] || gridEntry.time.length !== time.length) {
-      const list = await fetchJson(forecastUrl(
+      const { data: list, at: gridAt } = await fetchForecastJson(forecastQuery(
         grid.points.map((p) => p.lat).join(','),
         grid.points.map((p) => p.lon).join(','),
         ['cloud_cover'], center.timezone, bust,
@@ -197,7 +216,7 @@
         || list.some((p) => p.hourly.time.length !== time.length || p.hourly.time[0] !== time[0])) {
         throw new DataError('周辺の雲データの形式が想定と異なります。');
       }
-      gridEntry = { values: list.map((p) => p.hourly.cloud_cover), time: list[0].hourly.time, at: Date.now() };
+      gridEntry = { values: list.map((p) => p.hourly.cloud_cover), time: list[0].hourly.time, at: gridAt };
       gridCache.set(gridKey, gridEntry);
     }
     return { center, grid, gridValues: gridEntry.values, at: Math.min(centerEntry.at, gridEntry.at) };

@@ -1,0 +1,10 @@
+# 予報の中継(#57)。デプロイの手順は docs/RELEASE.md の「予報の中継(Cloudflare Workers)」を参照。
+name = "finestella-api"
+main = "src/index.js"
+compatibility_date = "2025-09-01"
+
+# キャッシュ(Cache API)は独自ドメインでしか効かないため、workers.dev は使わない。
+workers_dev = false
+routes = [
+  { pattern = "api.finestella.com", custom_domain = true },
+]
