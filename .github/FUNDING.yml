@@ -1,0 +1,3 @@
+# リポジトリのページに「Sponsor」ボタンを出し、支援先へのリンクを並べる(#69)。
+# アプリのフッターと README と同じ Buy me a coffee につなぐ。
+buy_me_a_coffee: netplan
