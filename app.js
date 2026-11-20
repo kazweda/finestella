@@ -438,6 +438,13 @@
   const currentBuild = (document.querySelector('script[src*="app.js?v="]')?.getAttribute('src').match(BUILD_ID) || [])[1];
   let hiddenAt = 0;
 
+  // フッターの版の番号の横に、配信の版の ID を出す。番号を上げずに配信しても、どの版で動いているかを画面で見分けられる。
+  if (currentBuild && currentBuild !== '__BUILD__') {
+    const build = $('build');
+    build.textContent = `(${currentBuild}) `;
+    build.hidden = false;
+  }
+
   // 読み込み直すときは true を返す。
   async function reloadIfUpdated() {
     // 手元で開いたときは配信で置き換わっていないので確かめない。
