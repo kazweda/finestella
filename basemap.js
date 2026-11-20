@@ -1,5 +1,5 @@
 // OpenFreeMap(OpenStreetMap のデータ)で描く背景地図のスタイル(#51)。
-// 主役は雲なので、海と陸・主な道路・都市名・山頂だけを暗い色で描く。
+// 主役は雲なので、海と陸・川・道路・町村名・山頂だけを暗い色で描く。
 // 国境線や国・州の名前は描かない(係争のある地域の扱いを、このアプリの地図として示さないため)。
 // 地名は lang の言語(name:en など)で1段だけ出す。将来、日本語版も一本化するときは lang を変えるだけで済む。
 (function (root) {
@@ -9,11 +9,15 @@
   const OFM_GLYPHS = 'https://tiles.openfreemap.org/fonts/{fontstack}/{range}.pbf';
   const FONT = ['Noto Sans Regular'];
 
+  // 雲(白)を重ねても線や地名が見分けられるよう、陸と道路・川の明るさの差を大きめにとる(#63)。
   const COLORS = {
-    land: '#1d2533',
+    land: '#202938',
     water: '#0b1018', // 地図の背景(style.css の #map)と同じ
-    road: '#273141',
-    label: '#8d9aab',
+    river: '#0e1520',
+    road: '#55657b',
+    roadMinor: '#3d4a5c',
+    label: '#c3ccd8',
+    labelMinor: '#9aa6b5',
     peak: '#a9b5c4',
     halo: '#0b1018',
   };
@@ -29,10 +33,11 @@
 
   function ofmStyle(lang) {
     const name = nameField(lang);
-    const label = (id, filter, minzoom, size) => ({
-      id, type: 'symbol', source: 'ofm', 'source-layer': 'place', filter, minzoom,
+    const label = (id, classes, minzoom, size, color = COLORS.label) => ({
+      id, type: 'symbol', source: 'ofm', 'source-layer': 'place', minzoom,
+      filter: ['match', ['get', 'class'], classes, true, false],
       layout: { 'text-field': name, 'text-font': FONT, 'text-size': size, 'text-max-width': 8 },
-      paint: { 'text-color': COLORS.label, 'text-halo-color': COLORS.halo, 'text-halo-width': 1.2 },
+      paint: { 'text-color': color, 'text-halo-color': COLORS.halo, 'text-halo-width': 1.4 },
     });
     return {
       version: 8,
@@ -42,23 +47,36 @@
         { id: 'land', type: 'background', paint: { 'background-color': COLORS.land } },
         { id: 'water', type: 'fill', source: 'ofm', 'source-layer': 'water', filter: ['!=', ['get', 'brunnel'], 'tunnel'], paint: { 'fill-color': COLORS.water } },
         {
+          id: 'river', type: 'line', source: 'ofm', 'source-layer': 'waterway', minzoom: 8,
+          filter: ['match', ['get', 'class'], ['river', 'canal'], true, false],
+          paint: { 'line-color': COLORS.river, 'line-width': ['interpolate', ['linear'], ['zoom'], 8, 0.8, 11, 2] },
+        },
+        {
+          id: 'road-minor', type: 'line', source: 'ofm', 'source-layer': 'transportation', minzoom: 9,
+          filter: ['match', ['get', 'class'], ['secondary', 'tertiary'], true, false],
+          paint: { 'line-color': COLORS.roadMinor, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.5, 11, 1.2] },
+        },
+        {
           id: 'road', type: 'line', source: 'ofm', 'source-layer': 'transportation', minzoom: 6,
           filter: ['match', ['get', 'class'], ['motorway', 'trunk', 'primary'], true, false],
-          paint: { 'line-color': COLORS.road, 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.5, 11, 1.5] },
+          paint: { 'line-color': COLORS.road, 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 11, 2] },
         },
-        label('place-village', ['==', ['get', 'class'], 'village'], 10, 11),
-        label('place-town', ['==', ['get', 'class'], 'town'], 8, 12),
-        label('place-city', ['==', ['get', 'class'], 'city'], 4, ['interpolate', ['linear'], ['zoom'], 4, 11, 10, 15]),
+        // ラベルは、重なると後ろの層ほど優先して残る。目印の山頂より、場所がわかる町村名を優先する。
         {
-          // 山頂は名前と標高を2行で出す(観測地を選ぶ目印になるため)。
+          // 山頂は名前と標高を2行で出す(観測地を選ぶ目印になるため)。重なったら高い山を残す。
           id: 'peak', type: 'symbol', source: 'ofm', 'source-layer': 'mountain_peak', minzoom: 8,
           filter: ['all', ['==', ['get', 'class'], 'peak'], ['has', 'ele']],
           layout: {
             'text-field': ['format', name, {}, '\n', {}, ['concat', ['to-string', ['get', 'ele']], ' m'], { 'font-scale': 0.85 }],
             'text-font': FONT, 'text-size': 11, 'text-anchor': 'top', 'text-offset': [0, 0.3],
+            'symbol-sort-key': ['-', 0, ['get', 'ele']],
           },
           paint: { 'text-color': COLORS.peak, 'text-halo-color': COLORS.halo, 'text-halo-width': 1.2 },
         },
+        label('place-local', ['hamlet', 'suburb', 'quarter', 'neighbourhood'], 10, 10, COLORS.labelMinor),
+        label('place-village', ['village'], 9, 11.5),
+        label('place-town', ['town'], 7, 12.5),
+        label('place-city', ['city'], 4, ['interpolate', ['linear'], ['zoom'], 4, 11, 10, 15]),
       ],
     };
   }
