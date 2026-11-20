@@ -239,10 +239,15 @@
   const isFresh = (entry) => entry && Date.now() - entry.at < MAX_AGE_MS;
 
   async function fetchForecast(place, signal, { bust = false } = {}) {
-    const centerKey = `${place.lat.toFixed(2)},${place.lon.toFixed(2)}`;
+    // 目的地は小数点以下2桁(約1km)に丸めて取得する(#68)。近くをタップした利用者どうしで同じ URL になり、
+    // 中継のキャッシュが当たる。気象モデルのマス目は数kmなので、雲量の値はほとんど変わらない。
+    // 丸めるのは取得だけで、ピン・表示・URL・太陽と月の計算は選んだ座標のまま。
+    const lat = place.lat.toFixed(2);
+    const lon = place.lon.toFixed(2);
+    const centerKey = `${lat},${lon}`;
     let centerEntry = centerCache.get(centerKey);
     if (!isFresh(centerEntry)) {
-      centerEntry = await fetchForecastJson(forecastQuery(place.lat, place.lon, HOURLY_VARS, 'auto', bust), signal);
+      centerEntry = await fetchForecastJson(forecastQuery(lat, lon, HOURLY_VARS, 'auto', bust), signal);
       centerCache.set(centerKey, centerEntry);
     }
     const center = centerEntry.data;
