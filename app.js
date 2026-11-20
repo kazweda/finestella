@@ -429,9 +429,44 @@
       refreshIfStale();
     }
   });
-  document.addEventListener('visibilitychange', () => {
-    if (document.hidden) return;
+  // --- 新しい版が出ていれば読み込み直す(#59) ---
+  // ホーム画面のアプリは裏で一時停止しているだけのことがあり、手前に戻っても古い JS のまま動き続ける。
+  // しばらく裏にあったときだけ、サーバーの index.html の版(?v= のコミットの ID)を今の版と比べる。
+  // 地点は URL と保存した初期位置から戻るので、読み込み直しても利用者の操作はほぼ失われない。
+  const UPDATE_CHECK_AFTER_MS = 5 * 60 * 1000;
+  const BUILD_ID = /app\.js\?v=([^"'&]+)/;
+  const currentBuild = (document.querySelector('script[src*="app.js?v="]')?.getAttribute('src').match(BUILD_ID) || [])[1];
+  let hiddenAt = 0;
+
+  // 読み込み直すときは true を返す。
+  async function reloadIfUpdated() {
+    // 手元で開いたときは配信で置き換わっていないので確かめない。
+    if (!currentBuild || currentBuild === '__BUILD__') return false;
+    try {
+      // GitHub Pages は index.html を10分キャッシュするので、ブラウザのキャッシュは使わない。
+      const res = await fetch(location.pathname, { cache: 'no-store' });
+      if (!res.ok) return false;
+      const latest = ((await res.text()).match(BUILD_ID) || [])[1];
+      if (!latest || latest === '__BUILD__' || latest === currentBuild) return false;
+      location.reload();
+      return true;
+    } catch (err) {
+      // オフラインなどで確かめられなければ、今の版のまま使い続ける。
+      console.error(err);
+      return false;
+    }
+  }
+
+  document.addEventListener('visibilitychange', async () => {
+    if (document.hidden) {
+      hiddenAt = Date.now();
+      return;
+    }
+    const away = hiddenAt ? Date.now() - hiddenAt : 0;
+    hiddenAt = 0;
     tick();
+    // 読み込み直すなら、古い版で予報を取り直さない。
+    if (away >= UPDATE_CHECK_AFTER_MS && await reloadIfUpdated()) return;
     refreshIfStale();
   });
   window.addEventListener('online', refreshIfStale);
