@@ -33,15 +33,9 @@
     });
   }
 
-  // 予報は中継(worker/)から取り、だめなら Open-Meteo に直接取りに行く(#57)。
-  const API_PROXY = 'https://api.finestella.com/v1/forecast';
-  const API = 'https://api.open-meteo.com/v1/forecast';
-  const GEOCODE = 'https://geocoding-api.open-meteo.com/v1/search';
-  const GSI_SEARCH = 'https://msearch.gsi.go.jp/address-search/AddressSearch';
   const FORECAST_DAYS = 3;
   const MAX_ZOOM = 11; // 市全体を一望できる範囲まで
   const OVERLAY_PX = 180;
-  const LABEL_W = 34;
   // named: 地名を持つ地点か。地図のタップなど緯度・経度だけの地点は false で、URL に地名を入れない。
   const DEFAULT_PLACE = { name: t('defaultPlace'), lat: 35.953, lon: 138.473, named: true };
   const DEFAULT_ZOOM = 8;
@@ -75,15 +69,6 @@
 
   // --- 地図 ---
   const map = L.map('map', { worldCopyJump: false, maxZoom: MAX_ZOOM }).setView([DEFAULT_PLACE.lat, DEFAULT_PLACE.lon], DEFAULT_ZOOM);
-  // 主役は雲なので、背景地図は不透明度を下げて地図の背景色に溶かす(色は style.css の .base-tiles)。
-  // 明るさやコントラストで暗くすると黒が浮き、雲との差が縮む。
-  // 広い範囲では海岸線が消えないように、拡大したときは地名や道路が読めるように、少し濃くする。
-  // Leaflet がレイヤーに不透明度を直接書き込むため、CSS ではなく setOpacity で指定する。
-  const baseOpacity = (zoom) => {
-    if (zoom <= 6) return 0.8;
-    if (zoom >= 10) return 0.9;
-    return zoom === 9 ? 0.8 : 0.7;
-  };
   // 背景地図。英語は OpenFreeMap(英語の地名)、日本語は地理院タイル(#51)。
   // 日本語でも ?map=ofm を付けると OpenFreeMap(日本語の地名)にする(一本化の見比べ用)。
   // URL を書き換えても残るよう、起動時に一度だけ読む。
@@ -91,54 +76,11 @@
   const MAP_KIND = MAP_PARAM || LANG === 'en' ? 'ofm' : 'gsi';
   let baseLayer = null;
 
-  // 背景地図のレイヤーを作って地図に載せ、出典を合わせる。一本化のときは、ここだけを変える。
-  async function addBaseLayer(kind, lang) {
-    $('credit-map').innerHTML = t(kind === 'ofm' ? 'creditMapOfmHtml' : 'creditMapGsiHtml');
-    if (kind === 'ofm') {
-      // 出典は先に足し、後から載る雲量の出典より前に並べる。
-      const attribution = window.Basemap.OFM_ATTRIBUTION;
-      map.attributionControl.addAttribution(attribution);
-      try {
-        // MapLibre GL は大きいので、OpenFreeMap を使うときだけ読み込む。
-        await loadMapLibre();
-        baseLayer = L.maplibreGL({
-          style: window.Basemap.ofmStyle(lang),
-          interactive: false, // 地図のタップは Leaflet で受ける
-          attributionControl: false, // タイルの情報から出典を足させない(上で足したものと二重になるため)
-        }).addTo(map); // 地理院タイルと同じ tilePane に入り、雲の下に描かれる
-      } catch (err) {
-        map.attributionControl.removeAttribution(attribution);
-        throw err;
-      }
-      return;
-    }
-    baseLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
-      minZoom: 2, maxZoom: MAX_ZOOM, className: 'base-tiles', opacity: baseOpacity(map.getZoom()),
-      // 色を反転して表示しているため、加工したことを併記する(国土地理院コンテンツ利用規約)。
-      attribution: t('gsiAttributionHtml'),
-    }).addTo(map);
-  }
-
-  const MAPLIBRE = [
-    { tag: 'link', href: 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css', integrity: 'sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK' },
-    { tag: 'script', src: 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js', integrity: 'sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp' },
-    { tag: 'script', src: 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js', integrity: 'sha384-tXYNKOHx4T02jMP7YYCtBxPIv1B5gaA5mcVPBzqMp6d7VzWzxJgI2aWF/nJLrQdS' },
-  ];
-
-  // プラグインは MapLibre GL を前提にするので、順に読み込む。
-  async function loadMapLibre() {
-    for (const { tag, ...attrs } of MAPLIBRE) {
-      await new Promise((resolve, reject) => {
-        const node = document.createElement(tag);
-        if (tag === 'link') node.rel = 'stylesheet';
-        Object.assign(node, attrs, { crossOrigin: 'anonymous', onload: resolve, onerror: () => reject(new Error(`${attrs.src || attrs.href} を読み込めない`)) });
-        document.head.append(node);
-      });
-    }
-  }
-
-  addBaseLayer(MAP_KIND, LANG).catch((err) => {
-    // OpenFreeMap が使えなければ、地理院タイルで表示する。
+  // 背景地図のレイヤーを作って載せる(basemap.js)。OpenFreeMap が使えなければ、地理院タイルで表示する。
+  const addBaseLayer = async (kind) => {
+    baseLayer = await window.Basemap.addBaseLayer(map, { kind, lang: LANG, t, maxZoom: MAX_ZOOM, creditEl: $('credit-map') });
+  };
+  addBaseLayer(MAP_KIND).catch((err) => {
     console.error(err);
     if (MAP_KIND !== 'gsi') addBaseLayer('gsi');
   });
@@ -165,7 +107,7 @@
 
   map.on('zoomend', () => {
     // OpenFreeMap はスタイルで暗い色にしているので、不透明度は変えない。
-    if (baseLayer instanceof L.TileLayer) baseLayer.setOpacity(baseOpacity(map.getZoom()));
+    if (baseLayer instanceof L.TileLayer) baseLayer.setOpacity(window.Basemap.gsiOpacity(map.getZoom()));
     updateUrl();
   });
 
@@ -185,123 +127,15 @@
     return t('unexpected');
   }
 
-  // --- データ取得 ---
-  // 通信の失敗だけを NetworkError にする。プログラムの不具合(TypeError など)を通信エラーと取り違えないため。
-  // offline: 端末がオフラインか。そうでなければ、配信元に届かないか応答がない。
-  class NetworkError extends Error {
-    constructor(offline) {
-      super(offline ? 'offline' : 'unreachable');
-      this.offline = offline;
-    }
-  }
-  // 画面に出してよい、想定どおりのエラー
-  class DataError extends Error {}
-
-  // 配信元が接続を受けたまま応答しないことがあるため、一定時間で打ち切る。
-  const FETCH_TIMEOUT_MS = 20 * 1000;
-
-  // signal で中断されたときだけ AbortError を投げる。時間切れは通信の失敗として扱う。
-  async function fetchJson(url, signal) {
-    return (await requestJson(url, signal)).data;
-  }
-
-  async function requestJson(url, signal) {
-    const controller = new AbortController();
-    const onAbort = () => controller.abort();
-    if (signal) {
-      if (signal.aborted) controller.abort();
-      else signal.addEventListener('abort', onAbort, { once: true });
-    }
-    const timer = setTimeout(onAbort, FETCH_TIMEOUT_MS);
-    try {
-      let res;
-      try {
-        res = await fetch(url, { signal: controller.signal });
-      } catch (err) {
-        if (signal?.aborted) throw err;
-        throw new NetworkError(navigator.onLine === false);
-      }
-      if (res.status === 429) throw new DataError(t('tooManyRequests'));
-      if (!res.ok) throw new DataError(t('httpError', res.status));
-      try {
-        return { data: await res.json(), headers: res.headers };
-      } catch (err) {
-        if (signal?.aborted) throw err;
-        if (controller.signal.aborted) throw new NetworkError(navigator.onLine === false);
-        throw new DataError(t('badData'));
-      }
-    } finally {
-      clearTimeout(timer);
-      signal?.removeEventListener('abort', onAbort);
-    }
-  }
-
-  // bust: URL の末尾に時刻を足し、前と別の URL にする(「再読み込み」用)。
-  // 配信元で応答しなくなったリクエストと同じ URL を送ると、同じように応答しないことがあるため。
-  function forecastQuery(latitude, longitude, hourly, timezone, bust = false) {
-    const params = new URLSearchParams({
-      latitude, longitude, hourly: hourly.join(','), timezone,
-      forecast_days: FORECAST_DAYS, wind_speed_unit: 'ms',
-    });
-    if (bust) params.set('_', Date.now());
-    return params.toString();
-  }
-
-  // 返す at は予報を取得した時刻。中継がキャッシュから返したときは、中継が Open-Meteo から取得した時刻。
-  // 中継の失敗(429 を含む)では Open-Meteo に直接取りに行く。中継の送信元は他の利用者と共用で、回数制限に当たることがあるため。
-  async function fetchForecastJson(query, signal) {
-    try {
-      const { data, headers } = await requestJson(`${API_PROXY}?${query}`, signal);
-      const at = Number(headers.get('X-Fetched-At'));
-      return { data, at: at > 0 ? Math.min(at, Date.now()) : Date.now() };
-    } catch (err) {
-      if (signal?.aborted || (err instanceof NetworkError && err.offline)) throw err;
-    }
-    return { data: await fetchJson(`${API}?${query}`, signal), at: Date.now() };
-  }
-
-  // 目的地(1地点)と周辺の雲(格子の49地点)は別々にキャッシュする。
-  // 格子は目的地が近ければ共通なので、目的地を少し動かしても取得するのは目的地の1地点だけで済む。
-  // 返す at は古いほうの取得時刻。古くなったほうだけを取り直す。
-  const centerCache = new Map();
-  const gridCache = new Map();
-  const isFresh = (entry) => entry && Date.now() - entry.at < MAX_AGE_MS;
-
-  async function fetchForecast(place, signal, { bust = false } = {}) {
-    // 目的地は小数点以下2桁(約1km)に丸めて取得する(#68)。近くをタップした利用者どうしで同じ URL になり、
-    // 中継のキャッシュが当たる。気象モデルのマス目は数kmなので、雲量の値はほとんど変わらない。
-    // 丸めるのは取得だけで、ピン・表示・URL・太陽と月の計算は選んだ座標のまま。
-    const lat = place.lat.toFixed(2);
-    const lon = place.lon.toFixed(2);
-    const centerKey = `${lat},${lon}`;
-    let centerEntry = centerCache.get(centerKey);
-    if (!isFresh(centerEntry)) {
-      centerEntry = await fetchForecastJson(forecastQuery(lat, lon, HOURLY_VARS, 'auto', bust), signal);
-      centerCache.set(centerKey, centerEntry);
-    }
-    const center = centerEntry.data;
-    const { time } = center.hourly;
-
-    // 全地点の時刻軸を揃えるため、目的地のタイムゾーンで周辺を取得する。
-    // 日付が変わると時刻軸の始まりがずれるので、目的地と揃っていなければ取り直す。
-    const grid = buildGrid(place.lat, place.lon);
-    const gridKey = `${grid.key},${center.timezone}`;
-    let gridEntry = gridCache.get(gridKey);
-    if (!isFresh(gridEntry) || gridEntry.time[0] !== time[0] || gridEntry.time.length !== time.length) {
-      const { data: list, at: gridAt } = await fetchForecastJson(forecastQuery(
-        grid.points.map((p) => p.lat).join(','),
-        grid.points.map((p) => p.lon).join(','),
-        ['cloud_cover'], center.timezone, bust,
-      ), signal);
-      if (!Array.isArray(list) || list.length !== grid.points.length
-        || list.some((p) => p.hourly.time.length !== time.length || p.hourly.time[0] !== time[0])) {
-        throw new DataError(t('badGridData'));
-      }
-      gridEntry = { values: list.map((p) => p.hourly.cloud_cover), time: list[0].hourly.time, at: gridAt };
-      gridCache.set(gridKey, gridEntry);
-    }
-    return { center, grid, gridValues: gridEntry.values, at: Math.min(centerEntry.at, gridEntry.at) };
-  }
+  // --- データ取得(api.js) ---
+  const { NetworkError, DataError } = window.Api;
+  const api = window.Api.createClient({
+    fetch: (...args) => fetch(...args),
+    t,
+    isOffline: () => navigator.onLine === false,
+    forecast: { days: FORECAST_DAYS, hourlyVars: HOURLY_VARS, maxAgeMs: MAX_AGE_MS, buildGrid },
+  });
+  const { fetchForecast } = api;
 
   // --- 目的地の選択 ---
   const { coordName } = i18n;
@@ -509,40 +343,25 @@
       refreshIfStale();
     }
   });
-  // --- 新しい版が出ていれば読み込み直す(#59) ---
-  // ホーム画面のアプリは裏で一時停止しているだけのことがあり、手前に戻っても古い JS のまま動き続ける。
-  // しばらく裏にあったときだけ、サーバーの index.html の版(?v= のコミットの ID)を今の版と比べる。
+  // --- 新しい版が出ていれば読み込み直す(#59、update.js) ---
   // 地点は URL と保存した初期位置から戻るので、読み込み直しても利用者の操作はほぼ失われない。
-  const UPDATE_CHECK_AFTER_MS = 5 * 60 * 1000;
-  const BUILD_ID = /app\.js\?v=([^"'&]+)/;
-  const currentBuild = (document.querySelector('script[src*="app.js?v="]')?.getAttribute('src').match(BUILD_ID) || [])[1];
+  const currentBuild = window.Update.currentBuild(document);
   let hiddenAt = 0;
 
   // フッターの版の番号の横に、配信の版の ID を出す。番号を上げずに配信しても、どの版で動いているかを画面で見分けられる。
-  if (currentBuild && currentBuild !== '__BUILD__') {
+  if (currentBuild) {
     const build = $('build');
     build.textContent = `(${currentBuild}) `;
     build.hidden = false;
   }
 
-  // 読み込み直すときは true を返す。
-  async function reloadIfUpdated() {
-    // 手元で開いたときは配信で置き換わっていないので確かめない。
-    if (!currentBuild || currentBuild === '__BUILD__') return false;
-    try {
-      // GitHub Pages は index.html を10分キャッシュするので、ブラウザのキャッシュは使わない。
-      const res = await fetch(location.pathname, { cache: 'no-store' });
-      if (!res.ok) return false;
-      const latest = ((await res.text()).match(BUILD_ID) || [])[1];
-      if (!latest || latest === '__BUILD__' || latest === currentBuild) return false;
-      location.reload();
-      return true;
-    } catch (err) {
-      // オフラインなどで確かめられなければ、今の版のまま使い続ける。
-      console.error(err);
-      return false;
-    }
-  }
+  const reloadIfUpdated = () => window.Update.reloadIfUpdated({
+    current: currentBuild,
+    fetch: (...args) => fetch(...args),
+    url: location.pathname,
+    reload: () => location.reload(),
+    logError: console.error,
+  });
 
   document.addEventListener('visibilitychange', async () => {
     if (document.hidden) {
@@ -553,7 +372,7 @@
     hiddenAt = 0;
     tick();
     // 読み込み直すなら、古い版で予報を取り直さない。
-    if (away >= UPDATE_CHECK_AFTER_MS && await reloadIfUpdated()) return;
+    if (away >= window.Update.CHECK_AFTER_MS && await reloadIfUpdated()) return;
     refreshIfStale();
   });
   window.addEventListener('online', refreshIfStale);
@@ -638,88 +457,19 @@
     overlay.setUrl(offscreen.toDataURL());
   }
 
+  // 3日間の雲のタイムライン(timeline.js)。
+  const TIMELINE_ROWS = [
+    { label: t('layerAll'), key: 'cloud_cover' },
+    { label: t('layerHigh'), key: 'cloud_cover_high' },
+    { label: t('layerMid'), key: 'cloud_cover_mid' },
+    { label: t('layerLow'), key: 'cloud_cover_low' },
+  ];
+
   function renderTimeline() {
-    const canvas = el.timeline;
-    const rect = canvas.getBoundingClientRect();
-    if (!rect.width) return;
-    const dpr = window.devicePixelRatio || 1;
-    canvas.width = Math.round(rect.width * dpr);
-    canvas.height = Math.round(rect.height * dpr);
-    const ctx = canvas.getContext('2d');
-    ctx.scale(dpr, dpr);
-    const W = rect.width;
-    const H = rect.height;
-    ctx.clearRect(0, 0, W, H);
-
-    const { hourly } = state.center;
-    const n = hourly.time.length;
-    const cellW = (W - LABEL_W) / n;
-    const dateH = 18;
-    const darkH = 8;
-    const moonH = 5;
-    const rows = [
-      { label: t('layerAll'), key: 'cloud_cover' },
-      { label: t('layerHigh'), key: 'cloud_cover_high' },
-      { label: t('layerMid'), key: 'cloud_cover_mid' },
-      { label: t('layerLow'), key: 'cloud_cover_low' },
-    ];
-    const bandsH = darkH + 2 + moonH + 6;
-    const rowH = (H - dateH - bandsH) / rows.length;
-    const xOf = (i) => LABEL_W + i * cellW;
-
-    ctx.font = '11px system-ui, sans-serif';
-    ctx.textBaseline = 'middle';
-
-    // 日付の区切り
-    ctx.fillStyle = '#9aa8b8';
-    hourly.time.forEach((iso, i) => {
-      if (iso.endsWith('T00:00')) {
-        const [, m, d] = iso.split('T')[0].split('-').map(Number);
-        ctx.fillText(i18n.shortDate(m, d), xOf(i) + 2, dateH / 2);
-      }
+    window.Timeline.draw(el.timeline, {
+      hourly: state.center.hourly, epochs: state.epochs, sky: state.sky, moonUp: state.moonUp, t: state.t,
+      rows: TIMELINE_ROWS, shortDate: i18n.shortDate, moonIllumination, dpr: window.devicePixelRatio || 1,
     });
-
-    // 空の暗さ(昼・薄明・夜)。各列は毎時0分を中心とした1時間で、境目は分単位の位置に描く。
-    const xAt = (ms) => xOf((ms - state.epochs[0]) / 3600000 + 0.5);
-    const SKY_COLORS = { day: '#d9b36a', twilight: '#4a5f86', night: '#10151f' };
-    for (const s of state.sky) {
-      ctx.fillStyle = SKY_COLORS[s.kind];
-      const x0 = xAt(s.start);
-      ctx.fillRect(x0, dateH, xAt(s.end) - x0, darkH);
-    }
-
-    // 月が出ている時間。輝面比が大きいほど明るく塗る(30分ごとに求める)。
-    const moonY = dateH + darkH + 2;
-    for (const u of state.moonUp) {
-      for (let t = u.start; t < u.end; t += 1800000) {
-        const t1 = Math.min(t + 1800000, u.end);
-        const k = moonIllumination((t + t1) / 2);
-        ctx.fillStyle = `rgb(232 228 200 / ${(0.2 + 0.8 * k).toFixed(2)})`;
-        const x0 = xAt(t);
-        ctx.fillRect(x0, moonY, xAt(t1) - x0, moonH);
-      }
-    }
-
-    // 雲量のヒートマップ
-    rows.forEach((row, r) => {
-      const y = dateH + bandsH + r * rowH;
-      ctx.fillStyle = '#9aa8b8';
-      ctx.fillText(row.label, 0, y + rowH / 2);
-      for (let i = 0; i < n; i++) {
-        const v = hourly[row.key][i];
-        if (v == null) {
-          ctx.fillStyle = '#000';
-        } else {
-          const shade = Math.round(42 + (255 - 42) * (v / 100));
-          ctx.fillStyle = `rgb(${shade} ${Math.min(255, shade + 8)} ${Math.min(255, shade + 20)})`;
-        }
-        ctx.fillRect(xOf(i), y, Math.ceil(cellW), rowH - 2);
-      }
-    });
-
-    // 選択中の時刻
-    ctx.fillStyle = '#ffc27a';
-    ctx.fillRect(xOf(state.t + 0.5) - 1, dateH, 2, H - dateH);
   }
 
   function renderWindows() {
@@ -786,10 +536,8 @@
   function seekFromPointer(e) {
     if (!state.center) return;
     const rect = el.timeline.getBoundingClientRect();
-    const n = state.center.hourly.time.length;
-    const i = Math.floor(((e.clientX - rect.left - LABEL_W) / (rect.width - LABEL_W)) * n);
     stopPlayback();
-    setTime(Math.max(0, Math.min(n - 1, i)));
+    setTime(window.Timeline.indexAt(e.clientX - rect.left, rect.width, state.center.hourly.time.length));
   }
   el.timeline.addEventListener('pointerdown', (e) => {
     el.timeline.setPointerCapture(e.pointerId);
@@ -800,44 +548,10 @@
   });
   window.addEventListener('resize', () => { if (state.center) renderTimeline(); });
 
-  // --- 地名検索 ---
-  // 国内の地名は国土地理院で探す。Open-Meteo は「札幌」「高縄山」のような日本語の地名を
-  // 見つけられないことが多いため、国土地理院に合う地名がないとき(主に海外)だけ併用する。
-  async function geocodeGsi(name) {
-    const data = await fetchJson(`${GSI_SEARCH}?${new URLSearchParams({ q: name })}`);
-    return rankGsiResults(data, name);
-  }
-
-  async function geocodeOpenMeteo(name) {
-    const params = new URLSearchParams({ name, count: 6, language: LANG, format: 'json' });
-    const data = await fetchJson(`${GEOCODE}?${params}`);
-    return (data.results || []).map((r) => ({
-      name: r.name,
-      label: [r.name, r.admin1, r.country].filter(Boolean).join(t('listSeparator')),
-      lat: r.latitude,
-      lon: r.longitude,
-    }));
-  }
-
-  // 英語で、日本語(漢字・かな)を含まない地名は Open-Meteo だけで探す。国土地理院は日本語の地名しか見つけられないため。
-  const JAPANESE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
-
-  async function searchPlaces(name) {
-    if (LANG !== 'ja' && !JAPANESE.test(name)) return geocodeOpenMeteo(name);
-    let domestic = [];
-    try {
-      domestic = await geocodeGsi(name);
-    } catch (err) {
-      console.error(err); // 国土地理院が使えなくても Open-Meteo で探す
-    }
-    if (domestic.some((r) => r.strong)) return domestic;
-    // 「ハワイ」で国内の施設名だけが見つかった場合などは、海外の候補を先に並べる。
-    const abroad = await geocodeOpenMeteo(name).catch((err) => {
-      if (domestic.length) { console.error(err); return []; }
-      throw err;
-    });
-    return [...abroad, ...domestic].slice(0, 6);
-  }
+  // --- 地名検索(search.js) ---
+  const { searchPlaces } = window.Search.create({
+    fetchJson: api.fetchJson, lang: LANG, t, rankGsiResults, logError: console.error,
+  });
 
   let searchSeq = 0;
   el.search.addEventListener('submit', async (e) => {
