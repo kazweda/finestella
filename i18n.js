@@ -4,9 +4,13 @@
 (function (root) {
   'use strict';
 
+  // 英語の文では、層の名前(Low など)を「low clouds」「mid-level clouds」の形にする。
+  const LAYER_ADJ = { Low: 'low', Mid: 'mid-level', High: 'high' };
+  const MONTHS = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
   const link = (href, text) => `<a href="${href}" target="_blank" rel="noopener">${text}</a>`;
   const CC_BY = link('https://creativecommons.org/licenses/by/4.0/', 'CC BY 4.0');
   const OPEN_METEO = link('https://open-meteo.com/', 'Open-Meteo.com');
+  const OFM_CREDIT = `${link('https://openfreemap.org', 'OpenFreeMap')} © ${link('https://www.openmaptiles.org/', 'OpenMapTiles')} Data from ${link('https://www.openstreetmap.org/copyright', 'OpenStreetMap')}`;
 
   const MESSAGES = {
     ja: {
@@ -29,7 +33,8 @@
       timelineNoteHtml: '上の帯は空の暗さ(<span class="swatch day"></span>昼 <span class="swatch twilight"></span>薄明 <span class="swatch night"></span>夜)、その下の細い帯は月が出ている時間です(<span class="swatch moon"></span>明るいほど満月に近い)。雲の動きは1時間ごとの予報を補間した表示です。実際の雲の形とは異なることがあります。',
       creditWeatherHtml: `Weather data by ${OPEN_METEO}(${CC_BY})。雲の分布と動きは1時間ごとの予報を補間して表示しています。`,
       creditSearchHtml: `地名検索:${link('https://maps.gsi.go.jp/', '国土地理院')}。海外の地名は Location data based on ${link('https://www.geonames.org/', 'GeoNames')}(${CC_BY})`,
-      creditMapHtml: `背景地図:${link('https://maps.gsi.go.jp/development/ichiran.html', '地理院タイル')}(淡色地図)の色を反転するなど加工して作成。日本周辺以外の海岸線:Shoreline data is derived from: United States. National Imagery and Mapping Agency.`,
+      creditMapGsiHtml: `背景地図:${link('https://maps.gsi.go.jp/development/ichiran.html', '地理院タイル')}(淡色地図)の色を反転するなど加工して作成。日本周辺以外の海岸線:Shoreline data is derived from: United States. National Imagery and Mapping Agency.`,
+      creditMapOfmHtml: `背景地図:${OFM_CREDIT}`,
       changelog: '更新履歴',
 
       // --- 地図 ---
@@ -90,7 +95,95 @@
       shortDate: (m, d) => `${m}/${d}`,
       coordName: (lat, lon) => `${lat < 0 ? '南緯' : '北緯'} ${Math.abs(lat).toFixed(2)}°, ${lon < 0 ? '西経' : '東経'} ${Math.abs(lon).toFixed(2)}°`,
     },
+    en: {
+      mapLabel: 'Map for choosing a destination',
+      searchPlaceholder: 'Search (e.g. Mauna Kea)',
+      searchLabel: 'Search places',
+      searchButton: 'Search',
+      legendMin: 'Cloud 0%',
+      choosePlace: 'Choose a destination',
+      openGoogleMaps: 'Open in Google Maps',
+      copyCoords: 'Copy coordinates',
+      retry: 'Reload',
+      totalCloud: 'Total cloud',
+      windowsHeading: 'Best observing windows',
+      windowsNote: 'Times outside astronomical twilight (sun below −18°) when total cloud cover stays at 30% or less. “No moon” means the Moon is below the horizon.',
+      timelineHeading: 'Clouds over 3 days',
+      now: 'Now',
+      sliderLabel: 'Time to show',
+      timelineNoteHtml: 'The top band shows how dark the sky is (<span class="swatch day"></span>day <span class="swatch twilight"></span>twilight <span class="swatch night"></span>night), and the thin band below it shows when the Moon is up (<span class="swatch moon"></span>brighter means closer to full). Cloud motion is interpolated from hourly forecasts and may differ from the actual shape of the clouds.',
+      creditWeatherHtml: `Weather data by ${OPEN_METEO} (${CC_BY}). Cloud cover and motion are interpolated from hourly forecasts.`,
+      creditSearchHtml: `Place search: Location data based on ${link('https://www.geonames.org/', 'GeoNames')} (${CC_BY}). Japanese place names: ${link('https://maps.gsi.go.jp/', 'GSI Japan')}.`,
+      creditMapGsiHtml: `Base map: modified from ${link('https://maps.gsi.go.jp/development/ichiran.html', 'GSI Tiles')} (pale map, colors inverted). Shorelines outside Japan: Shoreline data is derived from: United States. National Imagery and Mapping Agency.`,
+      creditMapOfmHtml: `Base map: ${OFM_CREDIT}`,
+      changelog: 'Changelog',
+
+      defaultPlace: 'Nobeyama',
+      gsiAttributionHtml: `Modified from ${link('https://maps.gsi.go.jp/development/ichiran.html', 'GSI Tiles')}`,
+      cloudAttributionHtml: `Clouds ${OPEN_METEO} (${CC_BY})`,
+      layerLow: 'Low',
+      layerMid: 'Mid',
+      layerHigh: 'High',
+      layerAll: 'Total',
+
+      loading: 'Loading the cloud forecast…',
+      offline: 'You are offline. Check your internet connection.',
+      forecastUnreachable: 'Could not get the forecast. The data provider (Open-Meteo) cannot be reached right now. ',
+      tryLater: 'Please try again later.',
+      waitAndRetry: 'Please wait a moment and reload.',
+      searchUnreachable: 'Could not search places. Please try again later.',
+      unexpected: 'Something went wrong. Please reload the page.',
+      tooManyRequests: 'Too many requests. Please wait a moment and try again.',
+      httpError: (status) => `Could not get the data (HTTP ${status}). Please try again later.`,
+      badData: 'The data was not in the expected format.',
+      badGridData: 'The surrounding cloud data was not in the expected format.',
+      fetchedAt: (when) => `Updated ${when}`,
+      fetchedStale: (when, reason) => `Forecast from ${when}. ${{ offline: 'Could not update because you are offline.', unreachable: 'Could not update because the data provider cannot be reached.' }[reason] ?? 'Could not update.'}`,
+
+      noNotableCloud: 'No significant clouds over the destination.',
+      cloudFlow: (layer, from, to, speed) => `Mostly ${LAYER_ADJ[layer]} clouds, moving from ${from} to ${to} at about ${speed} m/s.`,
+      cloudDominant: (layer) => `Mostly ${LAYER_ADJ[layer]} clouds.`,
+
+      noWindows: 'No times meet the conditions within the forecast period.',
+      timeRange: (from, to) => `${from} – ${to}`,
+      avgCloud: (pct) => `avg. cloud ${pct}%`,
+      moonNone: 'No moon',
+      moonUp: (pct) => `Moon up (${pct}% illuminated)`,
+      moonPartial: (from, to) => (from && to ? `No moon ${from} – ${to}` : from ? `No moon from ${from}` : `No moon until ${to}`),
+
+      play: '▶ Play',
+      stop: '■ Stop',
+      searching: 'Searching…',
+      notFound: 'No places found. Try another spelling, or tap the map.',
+      listSeparator: ', ',
+      copied: 'Copied',
+      copyFailed: 'Could not copy',
+      setHome: 'Set as home',
+      unsetHome: 'Remove home',
+      saveFailed: 'Could not save',
+
+      compass: ['N', 'NNE', 'NE', 'ENE', 'E', 'ESE', 'SE', 'SSE',
+        'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW'],
+      weekdays: ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'],
+      dateTime: (m, d, weekday, clock) => `${weekday}, ${MONTHS[m - 1]} ${d} ${clock}`,
+      shortDate: (m, d) => `${MONTHS[m - 1]} ${d}`,
+      coordName: (lat, lon) => `${Math.abs(lat).toFixed(2)}°${lat < 0 ? 'S' : 'N'}, ${Math.abs(lon).toFixed(2)}°${lon < 0 ? 'W' : 'E'}`,
+    },
   };
+
+  const LANGS = Object.keys(MESSAGES);
+
+  // 画面の言語を決める。URL の lang → その端末で選んだ言語 → ブラウザの言語設定の順(#63)。
+  // ブラウザの言語設定は、対応する言語のうち最初に挙がっているものを使い、なければ英語にする。
+  function pickLang({ url, saved, browser = [] } = {}) {
+    if (LANGS.includes(url)) return url;
+    if (LANGS.includes(saved)) return saved;
+    for (const tag of browser) {
+      const base = String(tag).toLowerCase().split('-')[0];
+      if (LANGS.includes(base)) return base;
+    }
+    return 'en';
+  }
 
   function create(lang) {
     const m = MESSAGES[lang] || MESSAGES.ja;
@@ -129,5 +222,5 @@
     }
   }
 
-  root.I18n = { MESSAGES, create, applyStatic };
+  root.I18n = { MESSAGES, LANGS, pickLang, create, applyStatic };
 })(globalThis);

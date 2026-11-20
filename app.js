@@ -6,10 +6,32 @@
     rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
-  // 画面の言語。今は日本語だけ(英語は #63 で足す)。
-  const i18n = window.I18n.create('ja');
+  // --- 画面の言語(#63) ---
+  // URL の lang → その端末で選んだ言語 → ブラウザの言語設定の順で決める。
+  // URL の lang は共有された地点を同じ言語で開くためのもので、端末には覚えない(覚えるのは切り替えを押したときだけ)。
+  const LANG_KEY = 'finestella:lang';
+  const URL_LANG = new URLSearchParams(location.search).get('lang');
+  const LANG = window.I18n.pickLang({
+    url: URL_LANG,
+    saved: (() => { try { return window.localStorage.getItem(LANG_KEY); } catch { return null; } })(),
+    browser: navigator.languages?.length ? navigator.languages : [navigator.language],
+  });
+  const i18n = window.I18n.create(LANG);
   const { t } = i18n;
+  document.documentElement.lang = LANG;
   window.I18n.applyStatic(document, i18n);
+
+  // フッターの「English / 日本語」。今の言語は押せない表示にし、押したら端末に覚えて、同じ地点のまま開き直す。
+  for (const a of document.querySelectorAll('.lang-switch [data-lang]')) {
+    if (a.dataset.lang === LANG) a.setAttribute('aria-current', 'true');
+    a.addEventListener('click', (e) => {
+      e.preventDefault();
+      try { window.localStorage.setItem(LANG_KEY, a.dataset.lang); } catch { /* 覚えられなくても URL で切り替わる */ }
+      const q = new URLSearchParams(location.search);
+      q.set('lang', a.dataset.lang);
+      location.assign(`${location.pathname}?${q}${location.hash}`);
+    });
+  }
 
   // 予報は中継(worker/)から取り、だめなら Open-Meteo に直接取りに行く(#57)。
   const API_PROXY = 'https://api.finestella.com/v1/forecast';
@@ -62,25 +84,32 @@
     if (zoom >= 10) return 0.9;
     return zoom === 9 ? 0.8 : 0.7;
   };
-  // 背景地図の種類。試作中は ?map=ofm を付けたときだけ OpenFreeMap にする(#51)。
+  // 背景地図。英語は OpenFreeMap(英語の地名)、日本語は地理院タイル(#51)。
+  // 日本語でも ?map=ofm を付けると OpenFreeMap(日本語の地名)にする(一本化の見比べ用)。
   // URL を書き換えても残るよう、起動時に一度だけ読む。
-  const MAP_KIND = new URLSearchParams(location.search).get('map') === 'ofm' ? 'ofm' : 'gsi';
-  // OpenFreeMap の地名の言語。試作中は英語を既定にし、?lang=ja で日本語の地名にする(一本化の見比べ用)。
-  const MAP_LANG = MAP_KIND === 'ofm' && new URLSearchParams(location.search).get('lang') === 'ja' ? 'ja' : 'en';
-  // 試作中の指定を、地点を選んで URL を書き換えても残す。
-  const MAP_QUERY = MAP_KIND === 'gsi' ? '' : `map=${MAP_KIND}${MAP_LANG === 'en' ? '' : `&lang=${MAP_LANG}`}`;
+  const MAP_PARAM = new URLSearchParams(location.search).get('map') === 'ofm' ? 'map=ofm' : '';
+  const MAP_KIND = MAP_PARAM || LANG === 'en' ? 'ofm' : 'gsi';
   let baseLayer = null;
 
-  // 背景地図のレイヤーを作って地図に載せる。英語版や一本化のときは、ここだけを変える。
+  // 背景地図のレイヤーを作って地図に載せ、出典を合わせる。一本化のときは、ここだけを変える。
   async function addBaseLayer(kind, lang) {
+    $('credit-map').innerHTML = t(kind === 'ofm' ? 'creditMapOfmHtml' : 'creditMapGsiHtml');
     if (kind === 'ofm') {
-      // MapLibre GL は大きいので、OpenFreeMap を使うときだけ読み込む。
-      await loadMapLibre();
-      baseLayer = L.maplibreGL({
-        style: window.Basemap.ofmStyle(lang),
-        attribution: window.Basemap.OFM_ATTRIBUTION,
-        interactive: false, // 地図のタップは Leaflet で受ける
-      }).addTo(map); // 地理院タイルと同じ tilePane に入り、雲の下に描かれる
+      // 出典は先に足し、後から載る雲量の出典より前に並べる。
+      const attribution = window.Basemap.OFM_ATTRIBUTION;
+      map.attributionControl.addAttribution(attribution);
+      try {
+        // MapLibre GL は大きいので、OpenFreeMap を使うときだけ読み込む。
+        await loadMapLibre();
+        baseLayer = L.maplibreGL({
+          style: window.Basemap.ofmStyle(lang),
+          interactive: false, // 地図のタップは Leaflet で受ける
+          attributionControl: false, // タイルの情報から出典を足させない(上で足したものと二重になるため)
+        }).addTo(map); // 地理院タイルと同じ tilePane に入り、雲の下に描かれる
+      } catch (err) {
+        map.attributionControl.removeAttribution(attribution);
+        throw err;
+      }
       return;
     }
     baseLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
@@ -108,7 +137,7 @@
     }
   }
 
-  addBaseLayer(MAP_KIND, MAP_LANG).catch((err) => {
+  addBaseLayer(MAP_KIND, LANG).catch((err) => {
     // OpenFreeMap が使えなければ、地理院タイルで表示する。
     console.error(err);
     if (MAP_KIND !== 'gsi') addBaseLayer('gsi');
@@ -283,7 +312,8 @@
   function updateUrl() {
     if (!urlActive || !state.place) return;
     let query = placeQuery({ ...state.place, name: state.place.named ? state.place.name : null }, map.getZoom());
-    if (MAP_QUERY) query += `&${MAP_QUERY}`; // 試作中の背景地図の指定を残す(#51)
+    query += `&lang=${LANG}`; // 共有した相手も同じ言語で開く(#63)
+    if (MAP_PARAM) query += `&${MAP_PARAM}`; // 背景地図の指定を残す(#51)
     // 「戻る」の履歴を増やさないよう、置き換える。
     history.replaceState(null, '', `${location.pathname}${query}`);
   }
@@ -713,7 +743,8 @@
       small.textContent = t('avgCloud', Math.round(w.avgCloud));
       const moon = document.createElement('small');
       moon.textContent = moonLabel(w);
-      li.append(btn, small, moon);
+      // 英語は要素の間で改行できないので、改行してよい位置を入れる(日本語は元々どこでも改行できる)。
+      li.append(btn, document.createElement('wbr'), small, document.createElement('wbr'), moon);
       return li;
     }));
   }
@@ -778,7 +809,7 @@
   }
 
   async function geocodeOpenMeteo(name) {
-    const params = new URLSearchParams({ name, count: 6, language: 'ja', format: 'json' });
+    const params = new URLSearchParams({ name, count: 6, language: LANG, format: 'json' });
     const data = await fetchJson(`${GEOCODE}?${params}`);
     return (data.results || []).map((r) => ({
       name: r.name,
@@ -788,7 +819,11 @@
     }));
   }
 
+  // 英語で、日本語(漢字・かな)を含まない地名は Open-Meteo だけで探す。国土地理院は日本語の地名しか見つけられないため。
+  const JAPANESE = /[\p{Script=Han}\p{Script=Hiragana}\p{Script=Katakana}]/u;
+
   async function searchPlaces(name) {
+    if (LANG !== 'ja' && !JAPANESE.test(name)) return geocodeOpenMeteo(name);
     let domestic = [];
     try {
       domestic = await geocodeGsi(name);
@@ -932,8 +967,9 @@
     openPlace(fromUrl, fromUrl.zoom ?? DEFAULT_ZOOM);
   } else {
     // 不正な値が付いていたら、ブックマークに残らないよう取り除いてから開く。
-    // 背景地図の指定(?map=ofm&lang=ja)だけは残す。
-    const keep = MAP_QUERY ? `?${MAP_QUERY}` : '';
+    // 言語と背景地図の指定(?lang=en、?map=ofm)だけは残す。
+    const kept = [URL_LANG === LANG ? `lang=${LANG}` : '', MAP_PARAM].filter(Boolean).join('&');
+    const keep = kept ? `?${kept}` : '';
     if (location.search !== keep || location.hash) history.replaceState(null, '', `${location.pathname}${keep}`);
     // URL の指定がなければ、保存した初期位置、それもなければ野辺山を開く。URL は変えない。
     const start = home

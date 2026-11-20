@@ -51,3 +51,33 @@ test('日本語の日付・座標・方角の書き方', () => {
 test('ない文言を使うとすぐ気づけるよう、エラーにする', () => {
   assert.throws(() => I.create('ja').t('noSuchKey'), /noSuchKey/);
 });
+
+test('どの言語も、日本語と同じ文言をそろえている', () => {
+  const ja = Object.keys(I.MESSAGES.ja).sort();
+  for (const lang of LANGS) assert.deepEqual(Object.keys(I.MESSAGES[lang]).sort(), ja, `${lang} の文言が日本語とそろっていない`);
+});
+
+test('画面の言語は URL → 端末で選んだ言語 → ブラウザの言語設定の順で決める', () => {
+  assert.equal(I.pickLang({ url: 'en', saved: 'ja', browser: ['ja-JP'] }), 'en');
+  assert.equal(I.pickLang({ url: 'fr', saved: 'ja', browser: ['en-US'] }), 'ja', '対応しない URL の lang は無視する');
+  assert.equal(I.pickLang({ saved: 'en', browser: ['ja-JP'] }), 'en');
+  assert.equal(I.pickLang({ browser: ['ja-JP', 'en-US'] }), 'ja');
+  assert.equal(I.pickLang({ browser: ['en-GB', 'ja'] }), 'en', '先に挙がっている言語を使う');
+  assert.equal(I.pickLang({ browser: ['fr-FR', 'ja'] }), 'ja', '対応しない言語は飛ばす');
+  assert.equal(I.pickLang({ browser: ['fr-FR', 'de'] }), 'en', 'どれも対応しなければ英語');
+  assert.equal(I.pickLang(), 'en');
+});
+
+test('英語の日付・座標・方角・文の書き方', () => {
+  const en = I.create('en');
+  assert.equal(en.formatTime('2026-11-20T21:00'), 'Fri, Nov 20 21:00');
+  assert.equal(en.formatTime('2026-11-20T21:00', false), '21:00');
+  assert.equal(en.shortDate(11, 20), 'Nov 20');
+  assert.equal(en.coordName(19.821, -155.468), '19.82°N, 155.47°W');
+  assert.equal(en.coordName(-33.87, 151.21), '33.87°S, 151.21°E');
+  assert.equal(en.compass(12), 'W');
+  assert.equal(en.t('cloudFlow', en.t('layerMid'), 'W', 'E', 45), 'Mostly mid-level clouds, moving from W to E at about 45 m/s.');
+  assert.equal(en.t('moonPartial', '02:43', ''), 'No moon from 02:43');
+  assert.equal(en.t('moonPartial', '', '04:30'), 'No moon until 04:30');
+  assert.equal(en.t('moonPartial', '01:00', '04:30'), 'No moon 01:00 – 04:30');
+});
