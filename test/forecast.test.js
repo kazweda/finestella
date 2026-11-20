@@ -70,11 +70,11 @@ test('格子の補間は角と中間の値を返し、欠測を除外する', ()
 
 test('西風の雲は東へ流れる', () => {
   const f = F.windFlow(270);
-  assert.equal(f.from, '西');
-  assert.equal(f.to, '東');
+  assert.equal(f.from, 12); // 西
+  assert.equal(f.to, 4); // 東
   assert.equal(f.arrowDeg, 90);
   assert.equal(F.windFlow(null), null);
-  assert.equal(F.compassName(359), '北');
+  assert.equal(F.compassIndex(359), 0); // 北
 });
 
 test('現地時刻をエポックへ変換する', () => {

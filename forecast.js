@@ -2,8 +2,6 @@
 (function (root) {
   'use strict';
 
-  const COMPASS = ['北', '北北東', '北東', '東北東', '東', '東南東', '南東', '南南東',
-    '南', '南南西', '南西', '西南西', '西', '西北西', '北西', '北北西'];
   const RAD = Math.PI / 180;
 
   const clamp = (x, lo, hi) => Math.min(hi, Math.max(lo, x));
@@ -76,13 +74,14 @@
     return weight > 0 ? sum / weight : null;
   }
 
-  const compassName = (deg) => COMPASS[Math.round((((deg % 360) + 360) % 360) / 22.5) % 16];
+  // 方角を16方位の番号(0=北、時計回り)にする。名前は言語ごとに i18n.js で付ける。
+  const compassIndex = (deg) => Math.round((((deg % 360) + 360) % 360) / 22.5) % 16;
 
   // 気象の風向は「吹いてくる方角」なので、雲が流れる向きは180度反対になる。
   function windFlow(direction) {
     if (direction == null) return null;
     const toward = (direction + 180) % 360;
-    return { from: compassName(direction), to: compassName(toward), arrowDeg: toward };
+    return { from: compassIndex(direction), to: compassIndex(toward), arrowDeg: toward };
   }
 
   // APIの現地時刻文字列をエポックミリ秒へ変換する。
@@ -277,7 +276,7 @@
   }
 
   root.Forecast = {
-    buildGrid, valueAt, sampleGrid, windFlow, compassName, localToEpoch,
+    buildGrid, valueAt, sampleGrid, windFlow, compassIndex, localToEpoch,
     sunAltitude, moonAltitude, moonIllumination, moonCondition, findCrossings, intervalsBelow, findObservingWindows, wrapLon, currentIndex, reindexTime,
   };
 })(globalThis);

@@ -29,59 +29,59 @@
 <body>
   <div class="layout">
     <section class="map-pane">
-      <div id="map" role="application" aria-label="目的地を選ぶ地図"></div>
+      <div id="map" role="application" aria-label="目的地を選ぶ地図" data-i18n-attr="aria-label:mapLabel"></div>
       <form id="search" class="search" role="search">
-        <input id="search-input" type="search" placeholder="地名で検索(例: 野辺山)" aria-label="地名で検索" autocomplete="off">
-        <button type="submit">検索</button>
+        <input id="search-input" type="search" placeholder="地名で検索(例: 野辺山)" aria-label="地名で検索" autocomplete="off" data-i18n-attr="placeholder:searchPlaceholder;aria-label:searchLabel">
+        <button type="submit" data-i18n="searchButton">検索</button>
         <ul id="search-results" class="search-results" hidden></ul>
       </form>
-      <div class="legend" aria-hidden="true"><span>雲量 0%</span><i></i><span>100%</span></div>
+      <div class="legend" aria-hidden="true"><span data-i18n="legendMin">雲量 0%</span><i></i><span>100%</span></div>
     </section>
 
     <main class="panel">
       <header>
-        <h1 id="place">目的地を選択</h1>
+        <h1 id="place" data-i18n="choosePlace">目的地を選択</h1>
         <p id="place-actions" class="place-actions" hidden>
-          <a id="gmap" href="#" target="_blank" rel="noopener">Google マップで開く</a>
-          <button id="copy-coords" type="button" class="link-button" hidden>緯度・経度をコピー</button>
-          <button id="home-toggle" type="button" class="link-button" hidden>初期位置にする</button>
+          <a id="gmap" href="#" target="_blank" rel="noopener" data-i18n="openGoogleMaps">Google マップで開く</a>
+          <button id="copy-coords" type="button" class="link-button" hidden data-i18n="copyCoords">緯度・経度をコピー</button>
+          <button id="home-toggle" type="button" class="link-button" hidden data-i18n="setHome">初期位置にする</button>
         </p>
         <p id="time" class="time">—</p>
         <p id="fetched" class="fetched" hidden></p>
       </header>
 
-      <p id="status" class="status" hidden><span id="status-text" role="status"></span><button id="retry" type="button" hidden>再読み込み</button></p>
+      <p id="status" class="status" hidden><span id="status-text" role="status"></span><button id="retry" type="button" hidden data-i18n="retry">再読み込み</button></p>
 
       <div class="now">
-        <div class="total"><strong id="total">—</strong><span>全雲量</span></div>
+        <div class="total"><strong id="total">—</strong><span data-i18n="totalCloud">全雲量</span></div>
         <dl id="layers" class="layers"></dl>
       </div>
 
       <p id="flow" class="flow"></p>
 
       <section>
-        <h2>観測のねらい目</h2>
+        <h2 data-i18n="windowsHeading">観測のねらい目</h2>
         <ul id="windows" class="windows"></ul>
-        <p class="note">天文薄明の外(太陽高度 −18° 未満)で、全雲量30%以下が続く時間帯です。「月なし」は月が地平線の下にある時間です。</p>
+        <p class="note" data-i18n="windowsNote">天文薄明の外(太陽高度 −18° 未満)で、全雲量30%以下が続く時間帯です。「月なし」は月が地平線の下にある時間です。</p>
       </section>
 
       <section>
-        <h2>3日間の雲</h2>
+        <h2 data-i18n="timelineHeading">3日間の雲</h2>
         <canvas id="timeline" class="timeline" aria-hidden="true"></canvas>
         <div class="controls">
-          <button id="play" type="button" disabled>▶ 再生</button>
-          <button id="now" type="button" disabled>現在</button>
-          <input id="slider" type="range" min="0" max="71" step="1" value="0" disabled aria-label="表示する時刻">
+          <button id="play" type="button" disabled data-i18n="play">▶ 再生</button>
+          <button id="now" type="button" disabled data-i18n="now">現在</button>
+          <input id="slider" type="range" min="0" max="71" step="1" value="0" disabled aria-label="表示する時刻" data-i18n-attr="aria-label:sliderLabel">
         </div>
-        <p class="note">上の帯は空の暗さ(<span class="swatch day"></span>昼 <span class="swatch twilight"></span>薄明 <span class="swatch night"></span>夜)、その下の細い帯は月が出ている時間です(<span class="swatch moon"></span>明るいほど満月に近い)。雲の動きは1時間ごとの予報を補間した表示です。実際の雲の形とは異なることがあります。</p>
+        <p class="note" data-i18n-html="timelineNoteHtml">上の帯は空の暗さ(<span class="swatch day"></span>昼 <span class="swatch twilight"></span>薄明 <span class="swatch night"></span>夜)、その下の細い帯は月が出ている時間です(<span class="swatch moon"></span>明るいほど満月に近い)。雲の動きは1時間ごとの予報を補間した表示です。実際の雲の形とは異なることがあります。</p>
       </section>
 
       <footer>
-        <p>Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>(<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>)。雲の分布と動きは1時間ごとの予報を補間して表示しています。</p>
-        <p>地名検索:<a href="https://maps.gsi.go.jp/" target="_blank" rel="noopener">国土地理院</a>。海外の地名は Location data based on <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>(<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>)</p>
-        <p>背景地図:<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>(淡色地図)の色を反転するなど加工して作成。日本周辺以外の海岸線:Shoreline data is derived from: United States. National Imagery and Mapping Agency.</p>
+        <p data-i18n-html="creditWeatherHtml">Weather data by <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>(<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>)。雲の分布と動きは1時間ごとの予報を補間して表示しています。</p>
+        <p data-i18n-html="creditSearchHtml">地名検索:<a href="https://maps.gsi.go.jp/" target="_blank" rel="noopener">国土地理院</a>。海外の地名は Location data based on <a href="https://www.geonames.org/" target="_blank" rel="noopener">GeoNames</a>(<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>)</p>
+        <p data-i18n-html="creditMapHtml">背景地図:<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>(淡色地図)の色を反転するなど加工して作成。日本周辺以外の海岸線:Shoreline data is derived from: United States. National Imagery and Mapping Agency.</p>
         <p class="support">If you like FineStella, you can support my work here!<br>☕ <a href="https://buymeacoffee.com/netplan" target="_blank" rel="noopener">Buy me a coffee</a></p>
-        <p class="version">FineStella v0.6.0 <span id="build" hidden></span>・<a href="https://github.com/kazweda/finestella/blob/main/CHANGELOG.md" target="_blank" rel="noopener">更新履歴</a></p>
+        <p class="version">FineStella v0.6.0 <span id="build" hidden></span>・<a href="https://github.com/kazweda/finestella/blob/main/CHANGELOG.md" target="_blank" rel="noopener" data-i18n="changelog">更新履歴</a></p>
       </footer>
     </main>
   </div>
@@ -91,6 +91,7 @@
   <script src="forecast.js?v=__BUILD__"></script>
   <script src="places.js?v=__BUILD__"></script>
   <script src="basemap.js?v=__BUILD__"></script>
+  <script src="i18n.js?v=__BUILD__"></script>
   <script src="app.js?v=__BUILD__"></script>
   <!-- Cloudflare Web Analytics --><script type='module' src='https://static.cloudflareinsights.com/beacon.min.js' data-cf-beacon='{"token": "961614c5d10748118acf31203bc30376"}'></script><!-- End Cloudflare Web Analytics -->
 </body>

@@ -20,7 +20,7 @@ test('CHANGELOG に [Unreleased] と、日付付きの最新の版がある', ()
 test('自前の JS と CSS は、すべて ?v=__BUILD__ 付きで読み込む', () => {
   const refs = [...html.matchAll(/(?:src|href)="(?!https?:|\/\/)([^"]+\.(?:js|css))(?:\?v=([^"]*))?"/g)];
   const files = refs.map((m) => m[1]).sort();
-  assert.deepEqual(files, ['app.js', 'basemap.js', 'forecast.js', 'places.js', 'style.css']);
+  assert.deepEqual(files, ['app.js', 'basemap.js', 'forecast.js', 'i18n.js', 'places.js', 'style.css']);
   for (const [, file, v] of refs) assert.equal(v, '__BUILD__', `${file} に ?v=__BUILD__ が付いていない`);
 });
 

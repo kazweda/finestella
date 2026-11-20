@@ -6,6 +6,11 @@
     rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
+  // 画面の言語。今は日本語だけ(英語は #63 で足す)。
+  const i18n = window.I18n.create('ja');
+  const { t } = i18n;
+  window.I18n.applyStatic(document, i18n);
+
   // 予報は中継(worker/)から取り、だめなら Open-Meteo に直接取りに行く(#57)。
   const API_PROXY = 'https://api.finestella.com/v1/forecast';
   const API = 'https://api.open-meteo.com/v1/forecast';
@@ -16,14 +21,14 @@
   const OVERLAY_PX = 180;
   const LABEL_W = 34;
   // named: 地名を持つ地点か。地図のタップなど緯度・経度だけの地点は false で、URL に地名を入れない。
-  const DEFAULT_PLACE = { name: '野辺山', lat: 35.953, lon: 138.473, named: true };
+  const DEFAULT_PLACE = { name: t('defaultPlace'), lat: 35.953, lon: 138.473, named: true };
   const DEFAULT_ZOOM = 8;
   const MAX_AGE_MS = 30 * 60 * 1000; // これより古い予報は取り直す
 
   const LAYERS = [
-    { key: 'cloud_cover_low', label: '下層', windLevel: '850hPa' },
-    { key: 'cloud_cover_mid', label: '中層', windLevel: '500hPa' },
-    { key: 'cloud_cover_high', label: '上層', windLevel: '300hPa' },
+    { key: 'cloud_cover_low', label: t('layerLow'), windLevel: '850hPa' },
+    { key: 'cloud_cover_mid', label: t('layerMid'), windLevel: '500hPa' },
+    { key: 'cloud_cover_high', label: t('layerHigh'), windLevel: '300hPa' },
   ];
   const HOURLY_VARS = ['cloud_cover', ...LAYERS.map((l) => l.key),
     ...LAYERS.flatMap((l) => [`wind_speed_${l.windLevel}`, `wind_direction_${l.windLevel}`])];
@@ -81,7 +86,7 @@
     baseLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
       minZoom: 2, maxZoom: MAX_ZOOM, className: 'base-tiles', opacity: baseOpacity(map.getZoom()),
       // 色を反転して表示しているため、加工したことを併記する(国土地理院コンテンツ利用規約)。
-      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>を加工して作成',
+      attribution: t('gsiAttributionHtml'),
     }).addTo(map);
   }
 
@@ -111,8 +116,7 @@
 
   // 地図に重ねる雲量も Open-Meteo のデータなので、地図上にも出典とライセンスを示す(CC BY 4.0)。
   // 補間したことや海岸線データの出所など長い文言は、パネル下部の出典欄に書く。
-  const CLOUD_ATTRIBUTION = '雲量 <a href="https://open-meteo.com/" target="_blank" rel="noopener">Open-Meteo.com</a>'
-    + '(<a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener">CC BY 4.0</a>)';
+  const CLOUD_ATTRIBUTION = t('cloudAttributionHtml');
 
   // 凡例は出典と同じ右下の枠に積む。地図の幅が狭いと出典が折り返して高くなるが、
   // 同じ枠に入れておけば凡例はその上に押し上げられ、重ならない。
@@ -142,18 +146,14 @@
     selectPlace({ name: coordName(lat, lon), lat, lon, named: false });
   });
 
-  const FORECAST_UNREACHABLE = '予報データを取得できませんでした。配信元(Open-Meteo)に接続できない状態です。';
-
   // what: 何の取得に失敗したか('forecast' か 'search')。配信元に届かないときの文言を変える。
   function errorMessage(err, what) {
     if (err instanceof NetworkError) {
-      if (err.offline) return 'インターネットに接続されていません。接続を確認してください。';
-      return what === 'search'
-        ? '地名を検索できませんでした。時間をおいてお試しください。'
-        : `${FORECAST_UNREACHABLE}時間をおいてお試しください。`;
+      if (err.offline) return t('offline');
+      return what === 'search' ? t('searchUnreachable') : `${t('forecastUnreachable')}${t('tryLater')}`;
     }
     if (err instanceof DataError) return err.message;
-    return '表示中に問題が起きました。ページを再読み込みしてください。';
+    return t('unexpected');
   }
 
   // --- データ取得 ---
@@ -192,14 +192,14 @@
         if (signal?.aborted) throw err;
         throw new NetworkError(navigator.onLine === false);
       }
-      if (res.status === 429) throw new DataError('リクエストが多すぎます。少し待ってからお試しください。');
-      if (!res.ok) throw new DataError(`データを取得できませんでした(HTTP ${res.status})。時間をおいてお試しください。`);
+      if (res.status === 429) throw new DataError(t('tooManyRequests'));
+      if (!res.ok) throw new DataError(t('httpError', res.status));
       try {
         return { data: await res.json(), headers: res.headers };
       } catch (err) {
         if (signal?.aborted) throw err;
         if (controller.signal.aborted) throw new NetworkError(navigator.onLine === false);
-        throw new DataError('データの形式が想定と異なります。');
+        throw new DataError(t('badData'));
       }
     } finally {
       clearTimeout(timer);
@@ -266,7 +266,7 @@
       ), signal);
       if (!Array.isArray(list) || list.length !== grid.points.length
         || list.some((p) => p.hourly.time.length !== time.length || p.hourly.time[0] !== time[0])) {
-        throw new DataError('周辺の雲データの形式が想定と異なります。');
+        throw new DataError(t('badGridData'));
       }
       gridEntry = { values: list.map((p) => p.hourly.cloud_cover), time: list[0].hourly.time, at: gridAt };
       gridCache.set(gridKey, gridEntry);
@@ -275,7 +275,7 @@
   }
 
   // --- 目的地の選択 ---
-  const coordName = (lat, lon) => `北緯 ${lat.toFixed(2)}°, 東経 ${lon.toFixed(2)}°`.replace('北緯 -', '南緯 ').replace('東経 -', '西経 ');
+  const { coordName } = i18n;
 
   // URL に地点を書くのは、URL で開いたときか、利用者が地点を選んだ後だけ。
   // 何も付けずに開いたままなら URL を変えない(#11 の「保存した初期位置」を URL より優先させないため)。
@@ -300,7 +300,7 @@
     else marker.setLatLng([place.lat, place.lon]);
     if (pan) map.setView([place.lat, place.lon], zoom);
     updateUrl();
-    showStatus('雲の予報を読み込んでいます…');
+    showStatus(t('loading'));
 
     // 連続クリックでAPIを消費しないよう少し待つ。
     clearTimeout(debounceTimer);
@@ -326,7 +326,7 @@
     el.retry.disabled = true;
     clearTimeout(retryCooldown);
     retryCooldown = setTimeout(() => { el.retry.disabled = false; }, RETRY_COOLDOWN_MS);
-    showStatus('雲の予報を読み込んでいます…', false, { retry: true });
+    showStatus(t('loading'), false, { retry: true });
     load(state.place, { bust: true });
   });
 
@@ -345,7 +345,7 @@
       state.loadFailed = true;
       // オフラインは回線が戻ったときに取り直すので、配信元に届かないときだけボタンを出す。
       if (err instanceof NetworkError && !err.offline) {
-        showStatus(`${FORECAST_UNREACHABLE}少し待ってから再読み込みしてください。`, true, { retry: true });
+        showStatus(`${t('forecastUnreachable')}${t('waitAndRetry')}`, true, { retry: true });
       } else {
         showStatus(errorMessage(err, 'forecast'), true);
       }
@@ -414,9 +414,9 @@
   function moonLabel(w) {
     const c = moonCondition(w, state.moonDown);
     const clock = (ms) => formatTime(localIso(ms), false);
-    if (c.kind === 'none') return '月なし';
-    if (c.kind === 'up') return `月あり(輝面比 ${Math.round(moonIllumination((w.start + w.end) / 2) * 100)}%)`;
-    return `月なし ${c.from ? clock(c.from) : ''}〜${c.to ? clock(c.to) : ''}`;
+    if (c.kind === 'none') return t('moonNone');
+    if (c.kind === 'up') return t('moonUp', Math.round(moonIllumination((w.start + w.end) / 2) * 100));
+    return t('moonPartial', c.from ? clock(c.from) : '', c.to ? clock(c.to) : '');
   }
 
   // --- 自動更新 ---
@@ -462,11 +462,8 @@
     const at = new Date(state.fetchedAt);
     const sameDay = at.toDateString() === new Date().toDateString();
     const clock = clockText(at);
-    const when = sameDay ? clock : `${at.getMonth() + 1}/${at.getDate()} ${clock}`;
-    const reason = { offline: 'オフラインのため', unreachable: '配信元に接続できず、' }[state.refreshFailed] ?? '';
-    el.fetched.textContent = state.refreshFailed
-      ? `${when} 取得の予報です。${reason}更新できませんでした。`
-      : `${when} 取得`;
+    const when = sameDay ? clock : `${i18n.shortDate(at.getMonth() + 1, at.getDate())} ${clock}`;
+    el.fetched.textContent = state.refreshFailed ? t('fetchedStale', when, state.refreshFailed) : t('fetchedAt', when);
     el.fetched.classList.toggle('stale', Boolean(state.refreshFailed));
     el.fetched.hidden = false;
   }
@@ -476,7 +473,7 @@
   // オフラインから戻ったら、読み込めなかった予報を取り直す。
   window.addEventListener('online', () => {
     if (state.loadFailed && state.place) {
-      showStatus('雲の予報を読み込んでいます…');
+      showStatus(t('loading'));
       load(state.place);
     } else {
       refreshIfStale();
@@ -547,13 +544,7 @@
     return new Date(local).toISOString().slice(0, 16);
   }
 
-  function formatTime(iso, withDate = true) {
-    const [date, clock] = iso.split('T');
-    const [, m, d] = date.split('-').map(Number);
-    if (!withDate) return clock;
-    const day = '日月火水木金土'[new Date(`${date}T00:00:00Z`).getUTCDay()];
-    return `${m}/${d}(${day}) ${clock}`;
-  }
+  const { formatTime } = i18n;
 
   function renderReadout() {
     const { hourly, timezone_abbreviation: tz } = state.center;
@@ -584,14 +575,14 @@
     const dominantValue = hourly[dominant.key][i];
     const arrowEl = marker && marker.getElement() && marker.getElement().querySelector('.arrow');
     if (dominantValue == null || dominantValue < 10) {
-      el.flow.textContent = dominantValue == null ? '' : '目的地の上空に目立つ雲はありません。';
+      el.flow.textContent = dominantValue == null ? '' : t('noNotableCloud');
       if (arrowEl) arrowEl.hidden = true;
     } else {
       const flow = windFlow(hourly[`wind_direction_${dominant.windLevel}`][i]);
       const speed = hourly[`wind_speed_${dominant.windLevel}`][i];
       el.flow.textContent = flow && speed != null
-        ? `${dominant.label}の雲が中心で、${flow.from}から${flow.to}へ約${Math.round(speed)} m/sで流れる見込みです。`
-        : `${dominant.label}の雲が中心です。`;
+        ? t('cloudFlow', dominant.label, i18n.compass(flow.from), i18n.compass(flow.to), Math.round(speed))
+        : t('cloudDominant', dominant.label);
       if (arrowEl) {
         arrowEl.hidden = !flow;
         if (flow) arrowEl.style.transform = `rotate(${flow.arrowDeg}deg)`;
@@ -637,10 +628,10 @@
     const darkH = 8;
     const moonH = 5;
     const rows = [
-      { label: '全体', key: 'cloud_cover' },
-      { label: '上層', key: 'cloud_cover_high' },
-      { label: '中層', key: 'cloud_cover_mid' },
-      { label: '下層', key: 'cloud_cover_low' },
+      { label: t('layerAll'), key: 'cloud_cover' },
+      { label: t('layerHigh'), key: 'cloud_cover_high' },
+      { label: t('layerMid'), key: 'cloud_cover_mid' },
+      { label: t('layerLow'), key: 'cloud_cover_low' },
     ];
     const bandsH = darkH + 2 + moonH + 6;
     const rowH = (H - dateH - bandsH) / rows.length;
@@ -654,7 +645,7 @@
     hourly.time.forEach((iso, i) => {
       if (iso.endsWith('T00:00')) {
         const [, m, d] = iso.split('T')[0].split('-').map(Number);
-        ctx.fillText(`${m}/${d}`, xOf(i) + 2, dateH / 2);
+        ctx.fillText(i18n.shortDate(m, d), xOf(i) + 2, dateH / 2);
       }
     });
 
@@ -710,16 +701,16 @@
     if (!found.length) {
       const li = document.createElement('li');
       li.className = 'none';
-      li.textContent = '予報の期間内に条件を満たす時間帯はありません。';
+      li.textContent = t('noWindows');
       el.windows.replaceChildren(li);
       return;
     }
     el.windows.replaceChildren(...found.map((w) => {
       const li = document.createElement('li');
       const btn = document.createElement('span');
-      btn.textContent = `${formatTime(localIso(w.start))}〜${formatTime(localIso(w.end), false)}`;
+      btn.textContent = t('timeRange', formatTime(localIso(w.start)), formatTime(localIso(w.end), false));
       const small = document.createElement('small');
-      small.textContent = `平均雲量 ${Math.round(w.avgCloud)}%`;
+      small.textContent = t('avgCloud', Math.round(w.avgCloud));
       const moon = document.createElement('small');
       moon.textContent = moonLabel(w);
       li.append(btn, small, moon);
@@ -743,11 +734,11 @@
   function stopPlayback() {
     if (state.timer) clearInterval(state.timer);
     state.timer = null;
-    el.play.textContent = '▶ 再生';
+    el.play.textContent = t('play');
   }
 
   function startPlayback() {
-    el.play.textContent = '■ 停止';
+    el.play.textContent = t('stop');
     const last = state.center.hourly.time.length - 1;
     if (state.t >= last) state.t = state.nowIndex;
     state.timer = setInterval(() => {
@@ -791,7 +782,7 @@
     const data = await fetchJson(`${GEOCODE}?${params}`);
     return (data.results || []).map((r) => ({
       name: r.name,
-      label: [r.name, r.admin1, r.country].filter(Boolean).join('、'),
+      label: [r.name, r.admin1, r.country].filter(Boolean).join(t('listSeparator')),
       lat: r.latitude,
       lon: r.longitude,
     }));
@@ -828,11 +819,11 @@
     };
     // 続けて検索したとき、遅れて届いた前の結果で一覧を上書きしない。
     const seq = ++searchSeq;
-    addEmpty('検索しています…');
+    addEmpty(t('searching'));
     try {
       const results = await searchPlaces(name);
       if (seq !== searchSeq) return;
-      if (!results.length) { addEmpty('見つかりませんでした。別の表記で検索するか、地図をタップしてください。'); return; }
+      if (!results.length) { addEmpty(t('notFound')); return; }
       list.replaceChildren(...results.map((r) => {
         const li = document.createElement('li');
         const btn = document.createElement('button');
@@ -864,10 +855,10 @@
     let message;
     try {
       await navigator.clipboard.writeText(formatCoords(state.place.lat, state.place.lon));
-      message = 'コピーしました';
+      message = t('copied');
     } catch (err) {
       console.error(err);
-      message = 'コピーできませんでした';
+      message = t('copyFailed');
     }
     el.copyCoords.textContent = message;
     clearTimeout(copyTimer);
@@ -901,7 +892,7 @@
 
   function renderHomeToggle() {
     el.homeToggle.hidden = !storage;
-    el.homeToggle.textContent = isSamePlace(home, state.place) ? '初期位置を解除' : '初期位置にする';
+    el.homeToggle.textContent = isSamePlace(home, state.place) ? t('unsetHome') : t('setHome');
   }
 
   el.homeToggle.addEventListener('click', () => {
@@ -917,7 +908,7 @@
       }
     } catch (err) {
       console.error(err);
-      el.homeToggle.textContent = '保存できませんでした';
+      el.homeToggle.textContent = t('saveFailed');
       return;
     }
     renderHomeToggle();
