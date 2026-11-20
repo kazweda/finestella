@@ -57,11 +57,53 @@
     if (zoom >= 10) return 0.9;
     return zoom === 9 ? 0.8 : 0.7;
   };
-  const baseLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
-    minZoom: 2, maxZoom: MAX_ZOOM, className: 'base-tiles', opacity: baseOpacity(map.getZoom()),
-    // 色を反転して表示しているため、加工したことを併記する(国土地理院コンテンツ利用規約)。
-    attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>を加工して作成',
-  }).addTo(map);
+  // 背景地図の種類。試作中は ?map=ofm を付けたときだけ OpenFreeMap にする(#51)。
+  // URL を書き換えても残るよう、起動時に一度だけ読む。
+  const MAP_KIND = new URLSearchParams(location.search).get('map') === 'ofm' ? 'ofm' : 'gsi';
+  let baseLayer = null;
+
+  // 背景地図のレイヤーを作って地図に載せる。英語版や一本化のときは、ここだけを変える。
+  async function addBaseLayer(kind, lang) {
+    if (kind === 'ofm') {
+      // MapLibre GL は大きいので、OpenFreeMap を使うときだけ読み込む。
+      await loadMapLibre();
+      baseLayer = L.maplibreGL({
+        style: window.Basemap.ofmStyle(lang),
+        attribution: window.Basemap.OFM_ATTRIBUTION,
+        interactive: false, // 地図のタップは Leaflet で受ける
+      }).addTo(map); // 地理院タイルと同じ tilePane に入り、雲の下に描かれる
+      return;
+    }
+    baseLayer = L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+      minZoom: 2, maxZoom: MAX_ZOOM, className: 'base-tiles', opacity: baseOpacity(map.getZoom()),
+      // 色を反転して表示しているため、加工したことを併記する(国土地理院コンテンツ利用規約)。
+      attribution: '<a href="https://maps.gsi.go.jp/development/ichiran.html" target="_blank" rel="noopener">地理院タイル</a>を加工して作成',
+    }).addTo(map);
+  }
+
+  const MAPLIBRE = [
+    { tag: 'link', href: 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css', integrity: 'sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK' },
+    { tag: 'script', src: 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js', integrity: 'sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp' },
+    { tag: 'script', src: 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js', integrity: 'sha384-tXYNKOHx4T02jMP7YYCtBxPIv1B5gaA5mcVPBzqMp6d7VzWzxJgI2aWF/nJLrQdS' },
+  ];
+
+  // プラグインは MapLibre GL を前提にするので、順に読み込む。
+  async function loadMapLibre() {
+    for (const { tag, ...attrs } of MAPLIBRE) {
+      await new Promise((resolve, reject) => {
+        const node = document.createElement(tag);
+        if (tag === 'link') node.rel = 'stylesheet';
+        Object.assign(node, attrs, { crossOrigin: 'anonymous', onload: resolve, onerror: () => reject(new Error(`${attrs.src || attrs.href} を読み込めない`)) });
+        document.head.append(node);
+      });
+    }
+  }
+
+  addBaseLayer(MAP_KIND, 'en').catch((err) => {
+    // OpenFreeMap が使えなければ、地理院タイルで表示する。
+    console.error(err);
+    if (MAP_KIND !== 'gsi') addBaseLayer('gsi');
+  });
 
   // 地図に重ねる雲量も Open-Meteo のデータなので、地図上にも出典とライセンスを示す(CC BY 4.0)。
   // 補間したことや海岸線データの出所など長い文言は、パネル下部の出典欄に書く。
@@ -85,7 +127,8 @@
   const offImage = offCtx.createImageData(OVERLAY_PX, OVERLAY_PX);
 
   map.on('zoomend', () => {
-    baseLayer.setOpacity(baseOpacity(map.getZoom()));
+    // OpenFreeMap はスタイルで暗い色にしているので、不透明度は変えない。
+    if (baseLayer instanceof L.TileLayer) baseLayer.setOpacity(baseOpacity(map.getZoom()));
     updateUrl();
   });
 
@@ -230,7 +273,8 @@
   let urlActive = false;
   function updateUrl() {
     if (!urlActive || !state.place) return;
-    const query = placeQuery({ ...state.place, name: state.place.named ? state.place.name : null }, map.getZoom());
+    let query = placeQuery({ ...state.place, name: state.place.named ? state.place.name : null }, map.getZoom());
+    if (MAP_KIND !== 'gsi') query += `&map=${MAP_KIND}`; // 試作中の背景地図の指定を残す(#51)
     // 「戻る」の履歴を増やさないよう、置き換える。
     history.replaceState(null, '', `${location.pathname}${query}`);
   }
@@ -888,7 +932,9 @@
     openPlace(fromUrl, fromUrl.zoom ?? DEFAULT_ZOOM);
   } else {
     // 不正な値が付いていたら、ブックマークに残らないよう取り除いてから開く。
-    if (location.search || location.hash) history.replaceState(null, '', location.pathname);
+    // 背景地図の指定(?map=ofm)だけは残す。
+    const keep = MAP_KIND !== 'gsi' ? `?map=${MAP_KIND}` : '';
+    if (location.search !== keep || location.hash) history.replaceState(null, '', `${location.pathname}${keep}`);
     // URL の指定がなければ、保存した初期位置、それもなければ野辺山を開く。URL は変えない。
     const start = home
       ? { name: home.name || coordName(home.lat, home.lon), lat: home.lat, lon: home.lon, named: Boolean(home.name) }
