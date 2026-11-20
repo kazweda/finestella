@@ -4,6 +4,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+## [0.7.0] - 2026-11-20
+
 ### 追加
 
 - 画面を英語でも表示できるようにしました。ブラウザの言語設定が日本語なら日本語、それ以外は英語で開きます。画面下の「English / 日本語」で切り替えられ、選んだ言語はその端末に覚えます。
@@ -114,7 +116,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.6.0...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.7.0...HEAD
+[0.7.0]: https://github.com/kazweda/finestella/releases/tag/v0.7.0
 [0.6.0]: https://github.com/kazweda/finestella/releases/tag/v0.6.0
 [0.5.1]: https://github.com/kazweda/finestella/releases/tag/v0.5.1
 [0.5.0]: https://github.com/kazweda/finestella/releases/tag/v0.5.0
