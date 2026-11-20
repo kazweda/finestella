@@ -93,5 +93,63 @@
     };
   }
 
-  root.Basemap = { ofmStyle, OFM_ATTRIBUTION };
+  // --- 地図に載せる(#74) ---
+  // ここから下はブラウザ(Leaflet と document)で呼ぶ。上のスタイルは Node のテストからも使える。
+
+  // 地理院タイルの不透明度。主役は雲なので、背景地図は不透明度を下げて地図の背景色に溶かす(色は style.css の .base-tiles)。
+  // 明るさやコントラストで暗くすると黒が浮き、雲との差が縮む。
+  // 広い範囲では海岸線が消えないように、拡大したときは地名や道路が読めるように、少し濃くする。
+  // Leaflet がレイヤーに不透明度を直接書き込むため、CSS ではなく setOpacity で指定する。
+  const gsiOpacity = (zoom) => {
+    if (zoom <= 6) return 0.8;
+    if (zoom >= 10) return 0.9;
+    return zoom === 9 ? 0.8 : 0.7;
+  };
+
+  const MAPLIBRE = [
+    { tag: 'link', href: 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.css', integrity: 'sha384-uTttxo/aOKbdE5RlD/SPzSDoDmNvGlUYPjONi2MN/b7c9HPSvW07OIuyP7uL6jxK' },
+    { tag: 'script', src: 'https://unpkg.com/maplibre-gl@5.24.0/dist/maplibre-gl.js', integrity: 'sha384-5+cfbwT0iiub6VsQAdn6yz16nr6sDiQoHx6tm4O8OVYXHYOxcffFmCJBL0dgdvGp' },
+    { tag: 'script', src: 'https://unpkg.com/@maplibre/maplibre-gl-leaflet@0.1.4/leaflet-maplibre-gl.js', integrity: 'sha384-tXYNKOHx4T02jMP7YYCtBxPIv1B5gaA5mcVPBzqMp6d7VzWzxJgI2aWF/nJLrQdS' },
+  ];
+
+  // MapLibre GL は大きいので、OpenFreeMap を使うときだけ読み込む。プラグインは MapLibre GL を前提にするので、順に読み込む。
+  async function loadMapLibre(doc) {
+    for (const { tag, ...attrs } of MAPLIBRE) {
+      await new Promise((resolve, reject) => {
+        const node = doc.createElement(tag);
+        if (tag === 'link') node.rel = 'stylesheet';
+        Object.assign(node, attrs, { crossOrigin: 'anonymous', onload: resolve, onerror: () => reject(new Error(`${attrs.src || attrs.href} を読み込めない`)) });
+        doc.head.append(node);
+      });
+    }
+  }
+
+  // 背景地図のレイヤーを作って map に載せ、パネル下部の出典(creditEl)を合わせる。載せたレイヤーを返す。
+  // kind: 'ofm'(OpenFreeMap)か 'gsi'(地理院タイル)。一本化のときは、ここだけを変える。
+  async function addBaseLayer(map, { kind, lang, t, maxZoom, creditEl, doc = root.document }) {
+    const L = root.L;
+    creditEl.innerHTML = t(kind === 'ofm' ? 'creditMapOfmHtml' : 'creditMapGsiHtml');
+    if (kind === 'ofm') {
+      // 出典は先に足し、後から載る雲量の出典より前に並べる。
+      map.attributionControl.addAttribution(OFM_ATTRIBUTION);
+      try {
+        await loadMapLibre(doc);
+        return L.maplibreGL({
+          style: ofmStyle(lang),
+          interactive: false, // 地図のタップは Leaflet で受ける
+          attributionControl: false, // タイルの情報から出典を足させない(上で足したものと二重になるため)
+        }).addTo(map); // 地理院タイルと同じ tilePane に入り、雲の下に描かれる
+      } catch (err) {
+        map.attributionControl.removeAttribution(OFM_ATTRIBUTION);
+        throw err;
+      }
+    }
+    return L.tileLayer('https://cyberjapandata.gsi.go.jp/xyz/pale/{z}/{x}/{y}.png', {
+      minZoom: 2, maxZoom, className: 'base-tiles', opacity: gsiOpacity(map.getZoom()),
+      // 色を反転して表示しているため、加工したことを併記する(国土地理院コンテンツ利用規約)。
+      attribution: t('gsiAttributionHtml'),
+    }).addTo(map);
+  }
+
+  root.Basemap = { ofmStyle, OFM_ATTRIBUTION, gsiOpacity, addBaseLayer };
 })(globalThis);
