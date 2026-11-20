@@ -39,6 +39,16 @@
       layout: { 'text-field': name, 'text-font': FONT, 'text-size': size, 'text-max-width': 8 },
       paint: { 'text-color': color, 'text-halo-color': COLORS.halo, 'text-halo-width': 1.4 },
     });
+    // 道路の線。minzoom で出し始め、そこから2段階かけて濃くする。
+    const road = (id, classes, minzoom, width, maxWidth) => ({
+      id, type: 'line', source: 'ofm', 'source-layer': 'transportation', minzoom,
+      filter: ['match', ['get', 'class'], classes, true, false],
+      paint: {
+        'line-color': COLORS.road,
+        'line-width': ['interpolate', ['linear'], ['zoom'], minzoom, width, 10, maxWidth],
+        'line-opacity': ['interpolate', ['linear'], ['zoom'], minzoom, 0.3, minzoom + 2, 1],
+      },
+    });
     return {
       version: 8,
       glyphs: OFM_GLYPHS,
@@ -56,11 +66,13 @@
           filter: ['match', ['get', 'class'], ['secondary', 'tertiary'], true, false],
           paint: { 'line-color': COLORS.roadMinor, 'line-width': ['interpolate', ['linear'], ['zoom'], 9, 0.5, 11, 1.2] },
         },
-        {
-          id: 'road', type: 'line', source: 'ofm', 'source-layer': 'transportation', minzoom: 6,
-          filter: ['match', ['get', 'class'], ['motorway', 'trunk', 'primary'], true, false],
-          paint: { 'line-color': COLORS.road, 'line-width': ['interpolate', ['linear'], ['zoom'], 6, 0.6, 11, 2] },
-        },
+        // 広い範囲では道路が網の目のように重なって見づらいので、縮小するほど本数を減らして薄くする。
+        // 拡大したときは、雲が多くても見分けられる明るさにする。
+        // ズームは MapLibre の値で、アプリ(Leaflet)のズームより1小さい(例:minzoom 7 はアプリのズーム8から)。
+        // 日本の国道の多くは trunk に分類されていて本数が多いため、高速道路(motorway)より1段階遅らせる。
+        road('road-primary', ['primary'], 8, 0.5, 1.6),
+        road('road-trunk', ['trunk'], 7, 0.5, 1.8),
+        road('road-motorway', ['motorway'], 5, 0.6, 2),
         // ラベルは、重なると後ろの層ほど優先して残る。目印の山頂より、場所がわかる町村名を優先する。
         {
           // 山頂は名前と標高を2行で出す(観測地を選ぶ目印になるため)。重なったら高い山を残す。
@@ -73,8 +85,8 @@
           },
           paint: { 'text-color': COLORS.peak, 'text-halo-color': COLORS.halo, 'text-halo-width': 1.2 },
         },
-        label('place-local', ['hamlet', 'suburb', 'quarter', 'neighbourhood'], 10, 10, COLORS.labelMinor),
-        label('place-village', ['village'], 9, 11.5),
+        label('place-local', ['hamlet', 'suburb', 'quarter', 'neighbourhood'], 9, 10, COLORS.labelMinor),
+        label('place-village', ['village'], 8, 11.5),
         label('place-town', ['town'], 7, 12.5),
         label('place-city', ['city'], 4, ['interpolate', ['linear'], ['zoom'], 4, 11, 10, 15]),
       ],
