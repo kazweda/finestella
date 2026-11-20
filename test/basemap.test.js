@@ -27,6 +27,14 @@ test('地名は指定した言語の名前を1段で出す', () => {
   }
 });
 
+test('名前がないとき、英語ではローマ字、日本語では現地の名前にする', () => {
+  const field = (lang) => JSON.stringify(B.ofmStyle(lang).layers.find((l) => l.id === 'place-city').layout['text-field']);
+  assert.ok(field('en').includes('"name:latin"'));
+  assert.ok(!field('en').includes('["get","name"]'), '英語で現地の名前(漢字など)が出る');
+  assert.ok(field('ja').includes('["get","name"]'));
+  assert.ok(!field('ja').includes('"name:latin"'), '日本語でローマ字が出る');
+});
+
 test('山頂は名前と標高を出す', () => {
   const peak = B.ofmStyle('en').layers.find((l) => l['source-layer'] === 'mountain_peak');
   assert.ok(peak);

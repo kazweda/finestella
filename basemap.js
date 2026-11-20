@@ -18,9 +18,10 @@
     halo: '#0b1018',
   };
 
-  // その言語の名前がなければ、ローマ字の名前にする。どちらもなければ出さない
-  // (現地の名前にすると、英語版で日本の山頂などが漢字のまま出るため)。
-  const nameField = (lang) => ['coalesce', ['get', `name:${lang}`], ['get', 'name:latin'], ''];
+  // その言語の名前がなければ、次の名前にする。どちらもなければ出さない。
+  // - 日本語:現地の名前。日本の地名は name:ja がなくても name が日本語のことが多く、ローマ字にすると読みにくいため
+  // - それ以外:ローマ字の名前。現地の名前にすると、英語版で日本の山頂などが漢字のまま出るため
+  const nameField = (lang) => ['coalesce', ['get', `name:${lang}`], ['get', lang === 'ja' ? 'name' : 'name:latin'], ''];
 
   const OFM_ATTRIBUTION = '<a href="https://openfreemap.org" target="_blank" rel="noopener">OpenFreeMap</a> '
     + '© <a href="https://www.openmaptiles.org/" target="_blank" rel="noopener">OpenMapTiles</a> '
