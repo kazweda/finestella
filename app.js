@@ -60,6 +60,10 @@
   // 背景地図の種類。試作中は ?map=ofm を付けたときだけ OpenFreeMap にする(#51)。
   // URL を書き換えても残るよう、起動時に一度だけ読む。
   const MAP_KIND = new URLSearchParams(location.search).get('map') === 'ofm' ? 'ofm' : 'gsi';
+  // OpenFreeMap の地名の言語。試作中は英語を既定にし、?lang=ja で日本語の地名にする(一本化の見比べ用)。
+  const MAP_LANG = MAP_KIND === 'ofm' && new URLSearchParams(location.search).get('lang') === 'ja' ? 'ja' : 'en';
+  // 試作中の指定を、地点を選んで URL を書き換えても残す。
+  const MAP_QUERY = MAP_KIND === 'gsi' ? '' : `map=${MAP_KIND}${MAP_LANG === 'en' ? '' : `&lang=${MAP_LANG}`}`;
   let baseLayer = null;
 
   // 背景地図のレイヤーを作って地図に載せる。英語版や一本化のときは、ここだけを変える。
@@ -99,7 +103,7 @@
     }
   }
 
-  addBaseLayer(MAP_KIND, 'en').catch((err) => {
+  addBaseLayer(MAP_KIND, MAP_LANG).catch((err) => {
     // OpenFreeMap が使えなければ、地理院タイルで表示する。
     console.error(err);
     if (MAP_KIND !== 'gsi') addBaseLayer('gsi');
@@ -274,7 +278,7 @@
   function updateUrl() {
     if (!urlActive || !state.place) return;
     let query = placeQuery({ ...state.place, name: state.place.named ? state.place.name : null }, map.getZoom());
-    if (MAP_KIND !== 'gsi') query += `&map=${MAP_KIND}`; // 試作中の背景地図の指定を残す(#51)
+    if (MAP_QUERY) query += `&${MAP_QUERY}`; // 試作中の背景地図の指定を残す(#51)
     // 「戻る」の履歴を増やさないよう、置き換える。
     history.replaceState(null, '', `${location.pathname}${query}`);
   }
@@ -932,8 +936,8 @@
     openPlace(fromUrl, fromUrl.zoom ?? DEFAULT_ZOOM);
   } else {
     // 不正な値が付いていたら、ブックマークに残らないよう取り除いてから開く。
-    // 背景地図の指定(?map=ofm)だけは残す。
-    const keep = MAP_KIND !== 'gsi' ? `?map=${MAP_KIND}` : '';
+    // 背景地図の指定(?map=ofm&lang=ja)だけは残す。
+    const keep = MAP_QUERY ? `?${MAP_QUERY}` : '';
     if (location.search !== keep || location.hash) history.replaceState(null, '', `${location.pathname}${keep}`);
     // URL の指定がなければ、保存した初期位置、それもなければ野辺山を開く。URL は変えない。
     const start = home
