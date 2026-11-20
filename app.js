@@ -38,7 +38,9 @@
   const OVERLAY_PX = 180;
   // named: 地名を持つ地点か。地図のタップなど緯度・経度だけの地点は false で、URL に地名を入れない。
   const DEFAULT_PLACE = { name: t('defaultPlace'), lat: 35.953, lon: 138.473, named: true };
-  const DEFAULT_ZOOM = 8;
+  const DEFAULT_ZOOM = 8; // 周りの雲の範囲(約±130km)がおおよそ画面に収まる
+  // 地名検索で選んだときは、その場所がわかるよう町の大きさまで拡大する。周りの雲は縮小して確かめる。
+  const SEARCH_ZOOM = 10;
   const MAX_AGE_MS = 30 * 60 * 1000; // これより古い予報は取り直す
 
   const LAYERS = [
@@ -580,7 +582,7 @@
         btn.textContent = r.label;
         btn.addEventListener('click', () => {
           list.hidden = true;
-          selectPlace({ name: r.name, lat: r.lat, lon: r.lon, named: true }, { pan: true });
+          selectPlace({ name: r.name, lat: r.lat, lon: r.lon, named: true }, { pan: true, zoom: SEARCH_ZOOM });
         });
         li.append(btn);
         return li;
