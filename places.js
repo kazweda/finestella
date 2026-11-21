@@ -114,6 +114,18 @@
   // 小数点以下4桁(約10m)。観測地の位置を地図で確かめるのに十分な精度。
   const formatCoords = (lat, lon) => `${lat.toFixed(4)}, ${lon.toFixed(4)}`;
 
+  // 検索欄に入れた「緯度, 経度」を読む。コピーした緯度・経度や Google マップの値をそのまま貼れるように、
+  // 全角の数字や読点、空白だけの区切りも受け付ける。緯度・経度の形でなければ null(地名として探す)。
+  const COORDS = /^(-?\d+(?:\.\d+)?)\s*(?:[,、]\s*|\s+)(-?\d+(?:\.\d+)?)$/;
+  function parseCoords(text) {
+    const m = String(text).normalize('NFKC').trim().replace(/[−ー]/g, '-').match(COORDS);
+    if (!m) return null;
+    const lat = Number(m[1]);
+    const lon = Number(m[2]);
+    if (Math.abs(lat) > 85 || Math.abs(lon) > 180) return null;
+    return { lat, lon };
+  }
+
   // Google の公開している URL の形式(API キー不要)。スマホでは Google マップのアプリで開く。
   const googleMapsUrl = (lat, lon) =>
     `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(4)},${lon.toFixed(4)}`;
@@ -142,7 +154,7 @@
   const isSamePlace = (a, b) => Boolean(a && b) && a.lat.toFixed(3) === b.lat.toFixed(3) && a.lon.toFixed(3) === b.lon.toFixed(3);
 
   root.Places = {
-    rankGsiResults, prefFromCode, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl,
+    rankGsiResults, prefFromCode, parsePlaceUrl, placeQuery, formatCoords, parseCoords, googleMapsUrl,
     parseHome, serializeHome, isSamePlace,
   };
 })(globalThis);

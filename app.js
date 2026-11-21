@@ -3,7 +3,7 @@
 
   const { buildGrid, valueAt, sampleGrid, windFlow, localToEpoch, sunAltitude, moonAltitude, moonIllumination, moonCondition, findCrossings, intervalsBelow, findObservingWindows, wrapLon, currentIndex, reindexTime } = window.Forecast;
   const {
-    rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
+    rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, parseCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
   // --- 画面の言語(#63) ---
@@ -561,6 +561,14 @@
     const name = el.searchInput.value.trim();
     if (!name) return;
     const list = el.searchResults;
+    // 「緯度, 経度」ならその地点を開く。
+    const coords = parseCoords(name);
+    if (coords) {
+      ++searchSeq; // 検索中の結果が遅れて届いても一覧を出さない
+      list.hidden = true;
+      selectPlace({ name: coordName(coords.lat, coords.lon), ...coords, named: false }, { pan: true, zoom: SEARCH_ZOOM });
+      return;
+    }
     const addEmpty = (text) => {
       const li = document.createElement('li');
       li.className = 'empty';

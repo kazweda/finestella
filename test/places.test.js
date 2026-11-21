@@ -71,6 +71,18 @@ test('以前の #緯度,経度 の形式も読む', () => {
   assert.deepEqual(P.parsePlaceUrl('', '#35.953,138.473'), { lat: 35.953, lon: 138.473, name: null, zoom: null });
 });
 
+test('検索欄の「緯度, 経度」を読む', () => {
+  for (const text of ['35.6812, 139.7671', '35.6812,139.7671', ' 35.6812 139.7671 ', '35.6812、139.7671', '３５．６８１２，１３９．７６７１']) {
+    assert.deepEqual(P.parseCoords(text), { lat: 35.6812, lon: 139.7671 }, text);
+  }
+  assert.deepEqual(P.parseCoords('-33.9, 151.2'), { lat: -33.9, lon: 151.2 });
+  assert.deepEqual(P.parseCoords('19.82 −155.47'), { lat: 19.82, lon: -155.47 });
+  // 地名や範囲外の値は緯度・経度として扱わない。
+  for (const text of ['野辺山', '35.6812', '86, 139', '35, 181', '35.6812, 139.7671, 10', '1e2, 0']) {
+    assert.equal(P.parseCoords(text), null, text);
+  }
+});
+
 test('不正な値は地点として扱わず、ズームと地名は範囲に収める', () => {
   for (const search of ['?lat=abc&lon=138', '?lat=35', '?lat=86&lon=138', '?lat=35&lon=181', '?lat=1e2&lon=0']) {
     assert.equal(P.parsePlaceUrl(search, ''), null, search);
