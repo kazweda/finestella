@@ -17,7 +17,7 @@
       // --- index.html の固定の文言(data-i18n で差し込む) ---
       mapLabel: '目的地を選ぶ地図',
       searchPlaceholder: '地名で検索(例: 野辺山)',
-      searchLabel: '地名で検索',
+      searchLabel: '地名か緯度・経度で検索',
       searchButton: '検索',
       legendMin: '雲量 0%',
       choosePlace: '目的地を選択',
@@ -98,7 +98,7 @@
     en: {
       mapLabel: 'Map for choosing a destination',
       searchPlaceholder: 'Search (e.g. Mauna Kea)',
-      searchLabel: 'Search places',
+      searchLabel: 'Search places or coordinates',
       searchButton: 'Search',
       legendMin: 'Cloud 0%',
       choosePlace: 'Choose a destination',
