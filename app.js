@@ -6,32 +6,10 @@
     rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, parseCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
-  // --- 画面の言語(#63) ---
-  // URL の lang → その端末で選んだ言語 → ブラウザの言語設定の順で決める。
-  // URL の lang は共有された地点を同じ言語で開くためのもので、端末には覚えない(覚えるのは切り替えを押したときだけ)。
-  const LANG_KEY = 'finestella:lang';
-  const URL_LANG = new URLSearchParams(location.search).get('lang');
-  const LANG = window.I18n.pickLang({
-    url: URL_LANG,
-    saved: (() => { try { return window.localStorage.getItem(LANG_KEY); } catch { return null; } })(),
-    browser: navigator.languages?.length ? navigator.languages : [navigator.language],
-  });
-  const i18n = window.I18n.create(LANG);
+  // --- 起動の流れ(#88) ---
+  // 準備の中身は、ファイルの下の「各部分」にある関数に分けていく(関数は下に書いても先に呼べる)。
+  const { LANG, URL_LANG, i18n } = setupLanguage();
   const { t } = i18n;
-  document.documentElement.lang = LANG;
-  window.I18n.applyStatic(document, i18n);
-
-  // フッターの「English / 日本語」。今の言語は押せない表示にし、押したら端末に覚えて、同じ地点のまま開き直す。
-  for (const a of document.querySelectorAll('.lang-switch [data-lang]')) {
-    if (a.dataset.lang === LANG) a.setAttribute('aria-current', 'true');
-    a.addEventListener('click', (e) => {
-      e.preventDefault();
-      try { window.localStorage.setItem(LANG_KEY, a.dataset.lang); } catch { /* 覚えられなくても URL で切り替わる */ }
-      const q = new URLSearchParams(location.search);
-      q.set('lang', a.dataset.lang);
-      location.assign(`${location.pathname}?${q}${location.hash}`);
-    });
-  }
 
   const FORECAST_DAYS = 3;
   const MAX_ZOOM = 11; // 市全体を一望できる範囲まで
@@ -705,5 +683,37 @@
       ? { name: home.name || coordName(home.lat, home.lon), lat: home.lat, lon: home.lon, named: Boolean(home.name) }
       : DEFAULT_PLACE;
     selectPlace(start, { pan: true, zoom: home?.zoom ?? DEFAULT_ZOOM, fromUser: false });
+  }
+
+  // --- 各部分 ---
+
+  // 画面の言語(#63)を決めて、画面の文言とフッターの言語の切り替えを用意する。
+  // URL の lang → その端末で選んだ言語 → ブラウザの言語設定の順で決める。
+  // URL の lang は共有された地点を同じ言語で開くためのもので、端末には覚えない(覚えるのは切り替えを押したときだけ)。
+  function setupLanguage() {
+    const LANG_KEY = 'finestella:lang';
+    const urlLang = new URLSearchParams(location.search).get('lang');
+    const lang = window.I18n.pickLang({
+      url: urlLang,
+      saved: (() => { try { return window.localStorage.getItem(LANG_KEY); } catch { return null; } })(),
+      browser: navigator.languages?.length ? navigator.languages : [navigator.language],
+    });
+    const i18n = window.I18n.create(lang);
+    document.documentElement.lang = lang;
+    window.I18n.applyStatic(document, i18n);
+
+    // フッターの「English / 日本語」。今の言語は押せない表示にし、押したら端末に覚えて、同じ地点のまま開き直す。
+    for (const a of document.querySelectorAll('.lang-switch [data-lang]')) {
+      if (a.dataset.lang === lang) a.setAttribute('aria-current', 'true');
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        try { window.localStorage.setItem(LANG_KEY, a.dataset.lang); } catch { /* 覚えられなくても URL で切り替わる */ }
+        const q = new URLSearchParams(location.search);
+        q.set('lang', a.dataset.lang);
+        location.assign(`${location.pathname}?${q}${location.hash}`);
+      });
+    }
+
+    return { LANG: lang, URL_LANG: urlLang, i18n };
   }
 })();
