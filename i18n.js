@@ -97,7 +97,7 @@
     },
     en: {
       mapLabel: 'Map for choosing a destination',
-      searchPlaceholder: 'Search (e.g. Mauna Kea)',
+      searchPlaceholder: 'Search (e.g. Mauna Kea, Hawaii)',
       searchLabel: 'Search places or coordinates',
       searchButton: 'Search',
       legendMin: 'Cloud 0%',
@@ -113,7 +113,7 @@
       sliderLabel: 'Time to show',
       timelineNoteHtml: 'The top band shows how dark the sky is (<span class="swatch day"></span>day <span class="swatch twilight"></span>twilight <span class="swatch night"></span>night), and the thin band below it shows when the Moon is up (<span class="swatch moon"></span>brighter means closer to full). Cloud motion is interpolated from hourly forecasts and may differ from the actual shape of the clouds.',
       creditWeatherHtml: `Weather data by ${OPEN_METEO} (${CC_BY}). Cloud cover and motion are interpolated from hourly forecasts.`,
-      creditSearchHtml: `Place search: Location data based on ${link('https://www.geonames.org/', 'GeoNames')} (${CC_BY}). Japanese place names: ${link('https://maps.gsi.go.jp/', 'GSI Japan')}.`,
+      creditSearchHtml: `Place search: Location data based on ${link('https://www.geonames.org/', 'GeoNames')} (${CC_BY}). Japanese place names: ${link('https://maps.gsi.go.jp/', 'GSI Japan')} and © ${link('https://www.openstreetmap.org/copyright', 'OpenStreetMap')} contributors.`,
       creditMapGsiHtml: `Base map: modified from ${link('https://maps.gsi.go.jp/development/ichiran.html', 'GSI Tiles')} (pale map, colors inverted). Shorelines outside Japan: Shoreline data is derived from: United States. National Imagery and Mapping Agency.`,
       creditMapOfmHtml: `Base map: ${OFM_CREDIT}`,
       changelog: 'Changelog',

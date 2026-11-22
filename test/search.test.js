@@ -3,21 +3,31 @@ const assert = require('node:assert/strict');
 require('../places.js');
 require('../i18n.js');
 require('../search.js');
-const { Search, Places, I18n } = globalThis;
+require('../api.js');
+const { Search, Places, I18n, Api } = globalThis;
 
-// 国土地理院と Open-Meteo の代わり。呼ばれた先を記録する。
-function fakeFetchJson({ gsi = [], openMeteo = [], gsiFails = false } = {}) {
+// 国土地理院・Open-Meteo・Nominatim の代わり。呼ばれた先と URL・打ち切りの時間を記録する。
+// openMeteo は候補の配列か、入力(name)から候補の配列を返す関数。
+function fakeFetchJson({ gsi = [], openMeteo = [], nominatim = [], gsiFails = false, nominatimError = null } = {}) {
   const calls = [];
-  const fetchJson = async (url) => {
-    const host = new URL(url).hostname;
-    calls.push(host.includes('gsi') ? 'gsi' : 'open-meteo');
-    if (host.includes('gsi')) {
+  const requests = [];
+  const fetchJson = async (url, signal, options = {}) => {
+    const u = new URL(url);
+    const host = u.hostname.includes('gsi') ? 'gsi' : u.hostname.includes('nominatim') ? 'nominatim' : 'open-meteo';
+    calls.push(host);
+    requests.push({ host, params: u.searchParams, timeoutMs: options.timeoutMs });
+    if (host === 'gsi') {
       if (gsiFails) throw new Error('GSI down');
       return gsi;
     }
-    return { results: openMeteo };
+    if (host === 'nominatim') {
+      if (nominatimError) throw nominatimError;
+      return nominatim;
+    }
+    const name = u.searchParams.get('name');
+    return { results: typeof openMeteo === 'function' ? openMeteo(name) : openMeteo };
   };
-  return { fetchJson, calls };
+  return { fetchJson, calls, requests };
 }
 
 const gsiFeature = (title, lon, lat, props = {}) => ({
@@ -62,4 +72,80 @@ test('国土地理院が使えなくても、Open-Meteo で探す', async () => 
   const fake = fakeFetchJson({ gsiFails: true, openMeteo: [meteo('札幌市', '北海道', '日本', 43.06, 141.35)] });
   const results = await search('ja', fake)('札幌');
   assert.equal(results.length, 1);
+});
+
+// --- 英語のローマ字の地名(#82) ---
+// Nominatim の返り値の形(2026-11-22 に確認した値を短くしたもの)。
+const nominatimPlace = (name, lat, lon, address) => ({ name, lat: String(lat), lon: String(lon), address: { country: 'Japan', ...address } });
+
+test('スペース区切りの「町名 県名」を、カンマ区切りに直す', () => {
+  assert.equal(Search.withComma('Moab Utah'), 'Moab, Utah');
+  assert.equal(Search.withComma(' Mauna Kea  Hawaii '), 'Mauna Kea, Hawaii');
+  assert.equal(Search.withComma('Fujimi, Nagano'), null);
+  assert.equal(Search.withComma('Aizuwakamatsu'), null);
+});
+
+test('英語で Open-Meteo に見つかれば、探し直さない', async () => {
+  const fake = fakeFetchJson({ openMeteo: [meteo('Moab', 'Utah', 'United States', 38.57, -109.55)] });
+  const results = await search('en', fake)('Moab, Utah');
+  assert.deepEqual(fake.calls, ['open-meteo']);
+  assert.equal(results[0].label, 'Moab, Utah, United States');
+});
+
+test('英語で0件なら、カンマ区切りに直して Open-Meteo で探し直す', async () => {
+  const fake = fakeFetchJson({
+    openMeteo: (name) => (name === 'Fujimi, Nagano' ? [meteo('Fujimi', 'Nagano', 'Japan', 35.91, 138.24)] : []),
+  });
+  const results = await search('en', fake)('Fujimi Nagano');
+  assert.deepEqual(fake.calls, ['open-meteo', 'open-meteo']);
+  assert.equal(fake.requests[1].params.get('name'), 'Fujimi, Nagano');
+  assert.equal(results[0].label, 'Fujimi, Nagano, Japan');
+});
+
+test('それでも0件なら、日本に限って Nominatim で探し、8秒で打ち切る', async () => {
+  const fake = fakeFetchJson({
+    nominatim: [nominatimPlace('Aizuwakamatsu', 37.49, 139.93, { city: 'Aizuwakamatsu', province: 'Fukushima Prefecture' })],
+  });
+  const results = await search('en', fake)('Aizuwakamatsu');
+  assert.deepEqual(fake.calls, ['open-meteo', 'nominatim']); // 1語なのでカンマ区切りの探し直しはしない
+  const { params, timeoutMs } = fake.requests[1];
+  assert.equal(params.get('q'), 'Aizuwakamatsu');
+  assert.equal(params.get('countrycodes'), 'jp');
+  assert.equal(params.get('accept-language'), 'en');
+  assert.equal(timeoutMs, 8000);
+  assert.deepEqual(results, [{ name: 'Aizuwakamatsu', label: 'Aizuwakamatsu, Fukushima, Japan', lat: 37.49, lon: 139.93 }]);
+});
+
+test('Nominatim の候補は英語の名前だけで表示名を作り、同じ場所の候補はまとめる', async () => {
+  const fake = fakeFetchJson({
+    nominatim: [
+      nominatimPlace('Otemachi', 33.8428, 132.7642, { road: '松山港線', neighbourhood: 'Otemachi 1-chome', city: 'Matsuyama', province: 'Ehime Prefecture' }),
+      nominatimPlace('Otemachi', 33.8429, 132.7641, { city: 'Matsuyama', province: 'Ehime Prefecture' }), // 停留所
+      nominatimPlace('大手町', 33.84, 132.77, { city: 'Matsuyama' }), // 英語の名前がない
+    ],
+  });
+  const results = await search('en', fake)('Otemachi, Matsuyama');
+  assert.deepEqual(fake.calls, ['open-meteo', 'nominatim']); // カンマがあるので直さない
+  assert.deepEqual(results.map((r) => r.label), ['Otemachi, Matsuyama, Ehime, Japan']);
+});
+
+test('名前と市町村が同じなら、表示名に重ねない', () => {
+  const [lake, village] = Search.nominatimResults([
+    nominatimPlace('Lake Yamanaka', 35.41, 138.87, { village: 'Yamanakako', province: 'Yamanashi Prefecture' }),
+    nominatimPlace('Yamanakako', 35.43, 138.88, { village: 'Yamanakako', province: 'Yamanashi Prefecture' }),
+  ]);
+  assert.equal(lake.label, 'Lake Yamanaka, Yamanakako, Yamanashi, Japan');
+  assert.equal(village.label, 'Yamanakako, Yamanashi, Japan');
+});
+
+test('Nominatim も0件なら0件、失敗したらそのエラーを返す', async () => {
+  assert.deepEqual(await search('en', fakeFetchJson())('Hoshinomura'), []);
+  const err = new Api.NetworkError(false);
+  await assert.rejects(search('en', fakeFetchJson({ nominatimError: err }))('Yamanakako'), err);
+});
+
+test('日本語の画面では Nominatim を使わない', async () => {
+  const fake = fakeFetchJson();
+  await search('ja', fake)('Yamanakako');
+  assert.deepEqual(fake.calls, ['gsi', 'open-meteo']);
 });

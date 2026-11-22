@@ -57,6 +57,7 @@ PR では GitHub Actions でも同じテストを実行します。main にマ�
 | 予報 | [Open-Meteo](https://open-meteo.com/)(CC BY 4.0) | 無料枠は非商用向け(広告のないアプリは非商用として扱われる)。出典の表示が必要 |
 | 海外の地名検索 | [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api)(データは [GeoNames](https://www.geonames.org/)、CC BY 4.0) | 出典の表示が必要 |
 | 国内の地名検索 | [国土地理院](https://maps.gsi.go.jp/)(地理院地図の地名検索) | 出典の表示が必要。API の仕様は公開されておらず、予告なく変わる可能性がある |
+| 国内の地名検索(英語の画面で、Open-Meteo で見つからないとき) | [Nominatim](https://nominatim.org/)(データは [OpenStreetMap](https://www.openstreetmap.org/copyright)、ODbL) | 出典の表示が必要。[利用規約](https://operations.osmfoundation.org/policies/nominatim/)で1秒に1回まで、入力の途中での問い合わせ(オートコンプリート)は禁止。検索のボタンを押したときだけ問い合わせる(#82) |
 | 背景地図(日本語) | [地理院タイル](https://maps.gsi.go.jp/development/ichiran.html)(淡色地図) | 申請不要。色を反転するなど加工しているため、その旨と出典の表示が必要。日本周辺以外の海岸線データの出所も表示する |
 | 背景地図(英語) | [OpenFreeMap](https://openfreemap.org/)(データは [OpenStreetMap](https://www.openstreetmap.org/copyright)、ODbL) | 無料・登録不要。OpenFreeMap・OpenMapTiles・OpenStreetMap の出典の表示が必要 |
 | 背景地図の表示(英語) | [MapLibre GL JS](https://maplibre.org/)(BSD-3-Clause) | 英語のときだけ読み込む |

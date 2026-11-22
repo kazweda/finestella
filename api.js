@@ -25,14 +25,15 @@
   // forecast: { days, hourlyVars, maxAgeMs, buildGrid }。now: 今の時刻(テストで差し替える)。
   function createClient({ fetch, t, isOffline = () => false, forecast, now = () => Date.now(), timeoutMs = FETCH_TIMEOUT_MS }) {
     // signal で中断されたときだけ AbortError を投げる。時間切れは通信の失敗として扱う。
-    async function requestJson(url, signal) {
+    // ms: 打ち切るまでの時間。補助の問い合わせ(#82 の Nominatim)では短くする。
+    async function requestJson(url, signal, ms = timeoutMs) {
       const controller = new AbortController();
       const onAbort = () => controller.abort();
       if (signal) {
         if (signal.aborted) controller.abort();
         else signal.addEventListener('abort', onAbort, { once: true });
       }
-      const timer = setTimeout(onAbort, timeoutMs);
+      const timer = setTimeout(onAbort, ms);
       try {
         let res;
         try {
@@ -56,7 +57,7 @@
       }
     }
 
-    const fetchJson = async (url, signal) => (await requestJson(url, signal)).data;
+    const fetchJson = async (url, signal, { timeoutMs: ms } = {}) => (await requestJson(url, signal, ms)).data;
 
     // bust: URL の末尾に時刻を足し、前と別の URL にする(「再読み込み」用)。
     // 配信元で応答しなくなったリクエストと同じ URL を送ると、同じように応答しないことがあるため。
