@@ -9,9 +9,11 @@
   // --- Startup flow (#88) ---
   // The details of each step are moved into functions under "Parts" at the bottom of this file
   // (function declarations are hoisted, so they can be called before they appear).
+  // 1. Decide the language first, since the constants below use t().
+  // 2. Declare the constants and the state shared by the parts.
+  // 3. Set up each part.
   const { LANG, URL_LANG, i18n } = setupLanguage();
   const { t } = i18n;
-  setupUpdateCheck();
 
   const FORECAST_DAYS = 3;
   const MAX_ZOOM = 11; // 市全体を一望できる範囲まで
@@ -48,6 +50,9 @@
   };
   let loadController = null;
   let debounceTimer = null;
+
+  setupUpdateCheck();
+  setupCopyCoords();
 
   // --- 地図 ---
   const map = L.map('map', { worldCopyJump: false, maxZoom: MAX_ZOOM }).setView([DEFAULT_PLACE.lat, DEFAULT_PLACE.lon], DEFAULT_ZOOM);
@@ -556,27 +561,6 @@
     }
   });
 
-  // --- 緯度・経度のコピー ---
-  // クリップボードは https か localhost でしか使えない。使えないときはボタンを出さない。
-  const canCopy = Boolean(navigator.clipboard && window.isSecureContext);
-  el.copyCoords.hidden = !canCopy;
-  const COPY_LABEL = el.copyCoords.textContent;
-  let copyTimer = null;
-  el.copyCoords.addEventListener('click', async () => {
-    if (!state.place) return;
-    let message;
-    try {
-      await navigator.clipboard.writeText(formatCoords(state.place.lat, state.place.lon));
-      message = t('copied');
-    } catch (err) {
-      console.error(err);
-      message = t('copyFailed');
-    }
-    el.copyCoords.textContent = message;
-    clearTimeout(copyTimer);
-    copyTimer = setTimeout(() => { el.copyCoords.textContent = COPY_LABEL; }, 1500);
-  });
-
   // --- 初期位置 ---
   // 何も付けずに開いたときの地点を、このブラウザに保存する。
   // 保存できない環境(プライベートブラウズなど)では、ボタンを出さず野辺山で開く。
@@ -723,6 +707,30 @@
       // If we are about to reload, do not refetch the forecast with the old build.
       if (away >= window.Update.CHECK_AFTER_MS && await reloadIfUpdated()) return;
       refreshIfStale();
+    });
+  }
+
+  // The button that copies the latitude and longitude of the selected place.
+  // The clipboard is only available over https or on localhost; otherwise the button is hidden.
+  function setupCopyCoords() {
+    const button = el.copyCoords;
+    button.hidden = !(navigator.clipboard && window.isSecureContext);
+    const label = button.textContent;
+    let resetTimer = null;
+    button.addEventListener('click', async () => {
+      if (!state.place) return;
+      let message;
+      try {
+        await navigator.clipboard.writeText(formatCoords(state.place.lat, state.place.lon));
+        message = t('copied');
+      } catch (err) {
+        console.error(err);
+        message = t('copyFailed');
+      }
+      button.textContent = message;
+      // Show the result briefly, then put the original label back.
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => { button.textContent = label; }, 1500);
     });
   }
 })();
