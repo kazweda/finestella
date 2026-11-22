@@ -688,7 +688,8 @@
   }
 
   // The home place: the place opened when the page has no place in its URL, saved in this browser.
-  // If the browser cannot save it (e.g. private browsing), the button is hidden and Nobeyama opens.
+  // If the browser cannot save it (e.g. site data is blocked), the button is hidden and Nobeyama opens.
+  // Chrome's incognito mode can save it; it is cleared when the incognito windows are closed.
   // Returns saved() for the startup flow and renderToggle() for selectPlace().
   function setupHome() {
     const HOME_KEY = 'finestella:home';
