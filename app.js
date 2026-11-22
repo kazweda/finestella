@@ -6,10 +6,12 @@
     rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, parseCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
-  // --- 起動の流れ(#88) ---
-  // 準備の中身は、ファイルの下の「各部分」にある関数に分けていく(関数は下に書いても先に呼べる)。
+  // --- Startup flow (#88) ---
+  // The details of each step are moved into functions under "Parts" at the bottom of this file
+  // (function declarations are hoisted, so they can be called before they appear).
   const { LANG, URL_LANG, i18n } = setupLanguage();
   const { t } = i18n;
+  setupUpdateCheck();
 
   const FORECAST_DAYS = 3;
   const MAX_ZOOM = 11; // 市全体を一望できる範囲まで
@@ -322,38 +324,6 @@
     } else {
       refreshIfStale();
     }
-  });
-  // --- 新しい版が出ていれば読み込み直す(#59、update.js) ---
-  // 地点は URL と保存した初期位置から戻るので、読み込み直しても利用者の操作はほぼ失われない。
-  const currentBuild = window.Update.currentBuild(document);
-  let hiddenAt = 0;
-
-  // フッターの版の番号の横に、配信の版の ID を出す。番号を上げずに配信しても、どの版で動いているかを画面で見分けられる。
-  if (currentBuild) {
-    const build = $('build');
-    build.textContent = `(${currentBuild}) `;
-    build.hidden = false;
-  }
-
-  const reloadIfUpdated = () => window.Update.reloadIfUpdated({
-    current: currentBuild,
-    fetch: (...args) => fetch(...args),
-    url: location.pathname,
-    reload: () => location.reload(),
-    logError: console.error,
-  });
-
-  document.addEventListener('visibilitychange', async () => {
-    if (document.hidden) {
-      hiddenAt = Date.now();
-      return;
-    }
-    const away = hiddenAt ? Date.now() - hiddenAt : 0;
-    hiddenAt = 0;
-    tick();
-    // 読み込み直すなら、古い版で予報を取り直さない。
-    if (away >= window.Update.CHECK_AFTER_MS && await reloadIfUpdated()) return;
-    refreshIfStale();
   });
   window.addEventListener('online', refreshIfStale);
 
@@ -715,5 +685,44 @@
     }
 
     return { LANG: lang, URL_LANG: urlLang, i18n };
+  }
+
+  // Reload the page when a new build has been deployed (#59, update.js).
+  // The place comes back from the URL or the saved home, so reloading loses almost nothing.
+  // When the page comes back to the foreground, this also follows the current time (tick)
+  // and refreshes a stale forecast (refreshIfStale). Both run only after that event,
+  // so this can be called early in the startup flow.
+  function setupUpdateCheck() {
+    const currentBuild = window.Update.currentBuild(document);
+    let hiddenAt = 0;
+
+    // Show the build ID next to the version number in the footer, so we can tell which build
+    // is running even when a deploy does not bump the version.
+    if (currentBuild) {
+      const build = document.getElementById('build');
+      build.textContent = `(${currentBuild}) `;
+      build.hidden = false;
+    }
+
+    const reloadIfUpdated = () => window.Update.reloadIfUpdated({
+      current: currentBuild,
+      fetch: (...args) => fetch(...args),
+      url: location.pathname,
+      reload: () => location.reload(),
+      logError: console.error,
+    });
+
+    document.addEventListener('visibilitychange', async () => {
+      if (document.hidden) {
+        hiddenAt = Date.now();
+        return;
+      }
+      const away = hiddenAt ? Date.now() - hiddenAt : 0;
+      hiddenAt = 0;
+      tick();
+      // If we are about to reload, do not refetch the forecast with the old build.
+      if (away >= window.Update.CHECK_AFTER_MS && await reloadIfUpdated()) return;
+      refreshIfStale();
+    });
   }
 })();
