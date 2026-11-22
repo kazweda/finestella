@@ -12,6 +12,7 @@
   // 1. Decide the language first, since the constants below use t().
   // 2. Declare the constants and the state shared by the parts.
   // 3. Set up each part.
+  // 4. Open the first place (openInitialPlace() at the end of this flow, after everything is ready).
   const { LANG, URL_LANG, i18n } = setupLanguage();
   const { t, coordName } = i18n;
 
@@ -503,35 +504,8 @@
   });
   window.addEventListener('resize', () => { if (state.center) renderTimeline(); });
 
-  // --- 起動 ---
-  function openPlace(p, zoom) {
-    const place = { name: p.name || coordName(p.lat, p.lon), lat: p.lat, lon: p.lon, named: Boolean(p.name) };
-    selectPlace(place, { pan: true, zoom }); // URL は新しい形式に書き換わる
-  }
-
-  // 開いたままアドレスバーで #緯度,経度 を書き換えたときも反応する(?以降を変えるとページが読み直される)。
-  // このときは ?lat=… より # の値を優先し、ズームは今のまま保つ。
-  window.addEventListener('hashchange', () => {
-    const p = parsePlaceUrl('', location.hash);
-    if (p) openPlace(p, map.getZoom());
-  });
-
-  const fromUrl = parsePlaceUrl(location.search, location.hash);
-  if (fromUrl) {
-    openPlace(fromUrl, fromUrl.zoom ?? DEFAULT_ZOOM);
-  } else {
-    // 不正な値が付いていたら、ブックマークに残らないよう取り除いてから開く。
-    // 言語と背景地図の指定(?lang=en、?map=ofm)だけは残す。
-    const kept = [URL_LANG === LANG ? `lang=${LANG}` : '', MAP_PARAM].filter(Boolean).join('&');
-    const keep = kept ? `?${kept}` : '';
-    if (location.search !== keep || location.hash) history.replaceState(null, '', `${location.pathname}${keep}`);
-    // URL の指定がなければ、保存した初期位置、それもなければ野辺山を開く。URL は変えない。
-    const saved = home.saved();
-    const start = saved
-      ? { name: saved.name || coordName(saved.lat, saved.lon), lat: saved.lat, lon: saved.lon, named: Boolean(saved.name) }
-      : DEFAULT_PLACE;
-    selectPlace(start, { pan: true, zoom: saved?.zoom ?? DEFAULT_ZOOM, fromUser: false });
-  }
+  // Open the first place last, once every part above is ready.
+  openInitialPlace();
 
   // --- 各部分 ---
 
@@ -747,5 +721,39 @@
         if (seq === searchSeq) searchingName = null;
       }
     });
+  }
+
+  // Open the place given in the URL; without one, the saved home place, or else Nobeyama.
+  // Also follow the URL hash while the page is open.
+  function openInitialPlace() {
+    const openPlace = (p, zoom) => {
+      const place = { name: p.name || coordName(p.lat, p.lon), lat: p.lat, lon: p.lon, named: Boolean(p.name) };
+      selectPlace(place, { pan: true, zoom }); // rewrites the URL in the current format
+    };
+
+    // Editing #lat,lon in the address bar does not reload the page (editing after ? does), so listen for it.
+    // The hash wins over ?lat=…, and the zoom stays as it is.
+    window.addEventListener('hashchange', () => {
+      const p = parsePlaceUrl('', location.hash);
+      if (p) openPlace(p, map.getZoom());
+    });
+
+    const fromUrl = parsePlaceUrl(location.search, location.hash);
+    if (fromUrl) {
+      openPlace(fromUrl, fromUrl.zoom ?? DEFAULT_ZOOM);
+      return;
+    }
+
+    // Remove invalid parameters before opening, so they are not kept in bookmarks.
+    // Keep only the language and the base map (?lang=en, ?map=ofm).
+    const kept = [URL_LANG === LANG ? `lang=${LANG}` : '', MAP_PARAM].filter(Boolean).join('&');
+    const keep = kept ? `?${kept}` : '';
+    if (location.search !== keep || location.hash) history.replaceState(null, '', `${location.pathname}${keep}`);
+    // Without a place in the URL, open the saved home place, or else Nobeyama. The URL is left as it is.
+    const saved = home.saved();
+    const start = saved
+      ? { name: saved.name || coordName(saved.lat, saved.lon), lat: saved.lat, lon: saved.lon, named: Boolean(saved.name) }
+      : DEFAULT_PLACE;
+    selectPlace(start, { pan: true, zoom: saved?.zoom ?? DEFAULT_ZOOM, fromUser: false });
   }
 })();
