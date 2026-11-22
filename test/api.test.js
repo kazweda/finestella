@@ -93,3 +93,14 @@ test('「再読み込み」では URL の末尾に時刻を足して、前と別
   await client(fetch).fetchForecast({ lat: 35.95, lon: 138.47 }, undefined, { bust: true });
   assert.equal(new URL(calls[0]).searchParams.get('_'), String(NOW));
 });
+
+test('問い合わせごとに打ち切りの時間を変えられ、時間切れは通信の失敗として扱う', async () => {
+  // signal で中断されるまで応答しない fetch
+  const hang = (url, { signal }) => new Promise((_, reject) => {
+    signal.addEventListener('abort', () => reject(Object.assign(new Error('aborted'), { name: 'AbortError' })));
+  });
+  const { fetchJson } = client(hang, { timeoutMs: 60 * 1000 });
+  const started = Date.now();
+  await assert.rejects(fetchJson('https://example.com/', undefined, { timeoutMs: 20 }), (err) => err instanceof Api.NetworkError);
+  assert.ok(Date.now() - started < 1000);
+});

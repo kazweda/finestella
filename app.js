@@ -556,15 +556,17 @@
   });
 
   let searchSeq = 0;
+  let searchingName = null; // 検索中の語。同じ語で続けて押されても問い合わせを重ねない(Nominatim は1秒に1回まで、#82)
   el.search.addEventListener('submit', async (e) => {
     e.preventDefault();
     const name = el.searchInput.value.trim();
-    if (!name) return;
+    if (!name || name === searchingName) return;
     const list = el.searchResults;
     // 「緯度, 経度」ならその地点を開く。
     const coords = parseCoords(name);
     if (coords) {
       ++searchSeq; // 検索中の結果が遅れて届いても一覧を出さない
+      searchingName = null;
       list.hidden = true;
       selectPlace({ name: coordName(coords.lat, coords.lon), ...coords, named: false }, { pan: true, zoom: SEARCH_ZOOM });
       return;
@@ -578,6 +580,7 @@
     };
     // 続けて検索したとき、遅れて届いた前の結果で一覧を上書きしない。
     const seq = ++searchSeq;
+    searchingName = name;
     addEmpty(t('searching'));
     try {
       const results = await searchPlaces(name);
@@ -600,6 +603,8 @@
       console.error(err);
       if (seq !== searchSeq) return;
       addEmpty(errorMessage(err, 'search'));
+    } finally {
+      if (seq === searchSeq) searchingName = null;
     }
   });
 
