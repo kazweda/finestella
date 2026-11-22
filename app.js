@@ -53,6 +53,7 @@
 
   setupUpdateCheck();
   setupCopyCoords();
+  const home = setupHome();
 
   // --- 地図 ---
   const map = L.map('map', { worldCopyJump: false, maxZoom: MAX_ZOOM }).setView([DEFAULT_PLACE.lat, DEFAULT_PLACE.lon], DEFAULT_ZOOM);
@@ -145,7 +146,7 @@
     el.place.textContent = place.name;
     el.gmap.href = googleMapsUrl(place.lat, place.lon);
     el.placeActions.hidden = false;
-    renderHomeToggle();
+    home.renderToggle();
     if (fromUser) urlActive = true;
     if (!marker) marker = L.marker([place.lat, place.lon], { icon: pinIcon, keyboard: false, interactive: false }).addTo(map);
     else marker.setLatLng([place.lat, place.lon]);
@@ -561,55 +562,6 @@
     }
   });
 
-  // --- 初期位置 ---
-  // 何も付けずに開いたときの地点を、このブラウザに保存する。
-  // 保存できない環境(プライベートブラウズなど)では、ボタンを出さず野辺山で開く。
-  const HOME_KEY = 'finestella:home';
-  const storage = (() => {
-    try {
-      const s = window.localStorage;
-      s.setItem(`${HOME_KEY}:test`, '1');
-      s.removeItem(`${HOME_KEY}:test`);
-      return s;
-    } catch {
-      return null;
-    }
-  })();
-
-  function loadHome() {
-    try {
-      return storage ? parseHome(storage.getItem(HOME_KEY)) : null;
-    } catch {
-      return null;
-    }
-  }
-
-  let home = loadHome();
-
-  function renderHomeToggle() {
-    el.homeToggle.hidden = !storage;
-    el.homeToggle.textContent = isSamePlace(home, state.place) ? t('unsetHome') : t('setHome');
-  }
-
-  el.homeToggle.addEventListener('click', () => {
-    if (!storage || !state.place) return;
-    try {
-      if (isSamePlace(home, state.place)) {
-        storage.removeItem(HOME_KEY);
-        home = null;
-      } else {
-        const name = state.place.named ? state.place.name : null;
-        storage.setItem(HOME_KEY, serializeHome({ ...state.place, name }, map.getZoom()));
-        home = loadHome();
-      }
-    } catch (err) {
-      console.error(err);
-      el.homeToggle.textContent = t('saveFailed');
-      return;
-    }
-    renderHomeToggle();
-  });
-
   // --- 起動 ---
   function openPlace(p, zoom) {
     const place = { name: p.name || coordName(p.lat, p.lon), lat: p.lat, lon: p.lon, named: Boolean(p.name) };
@@ -633,10 +585,11 @@
     const keep = kept ? `?${kept}` : '';
     if (location.search !== keep || location.hash) history.replaceState(null, '', `${location.pathname}${keep}`);
     // URL の指定がなければ、保存した初期位置、それもなければ野辺山を開く。URL は変えない。
-    const start = home
-      ? { name: home.name || coordName(home.lat, home.lon), lat: home.lat, lon: home.lon, named: Boolean(home.name) }
+    const saved = home.saved();
+    const start = saved
+      ? { name: saved.name || coordName(saved.lat, saved.lon), lat: saved.lat, lon: saved.lon, named: Boolean(saved.name) }
       : DEFAULT_PLACE;
-    selectPlace(start, { pan: true, zoom: home?.zoom ?? DEFAULT_ZOOM, fromUser: false });
+    selectPlace(start, { pan: true, zoom: saved?.zoom ?? DEFAULT_ZOOM, fromUser: false });
   }
 
   // --- 各部分 ---
@@ -732,5 +685,62 @@
       clearTimeout(resetTimer);
       resetTimer = setTimeout(() => { button.textContent = label; }, 1500);
     });
+  }
+
+  // The home place: the place opened when the page has no place in its URL, saved in this browser.
+  // If the browser cannot save it (e.g. site data is blocked), the button is hidden and Nobeyama opens.
+  // Chrome's incognito mode can save it; it is cleared when the incognito windows are closed.
+  // Returns saved() for the startup flow and renderToggle() for selectPlace().
+  function setupHome() {
+    const HOME_KEY = 'finestella:home';
+    const storage = (() => {
+      try {
+        const s = window.localStorage;
+        s.setItem(`${HOME_KEY}:test`, '1');
+        s.removeItem(`${HOME_KEY}:test`);
+        return s;
+      } catch {
+        return null;
+      }
+    })();
+
+    const load = () => {
+      try {
+        return storage ? parseHome(storage.getItem(HOME_KEY)) : null;
+      } catch {
+        return null;
+      }
+    };
+
+    let saved = load();
+    const button = el.homeToggle;
+
+    // The label says whether the selected place is the home place.
+    function renderToggle() {
+      button.hidden = !storage;
+      button.textContent = isSamePlace(saved, state.place) ? t('unsetHome') : t('setHome');
+    }
+
+    // map is declared later in the startup flow, but it is only used after a click.
+    button.addEventListener('click', () => {
+      if (!storage || !state.place) return;
+      try {
+        if (isSamePlace(saved, state.place)) {
+          storage.removeItem(HOME_KEY);
+          saved = null;
+        } else {
+          const name = state.place.named ? state.place.name : null;
+          storage.setItem(HOME_KEY, serializeHome({ ...state.place, name }, map.getZoom()));
+          saved = load();
+        }
+      } catch (err) {
+        console.error(err);
+        button.textContent = t('saveFailed');
+        return;
+      }
+      renderToggle();
+    });
+
+    return { saved: () => saved, renderToggle };
   }
 })();
