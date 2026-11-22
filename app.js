@@ -13,7 +13,7 @@
   // 2. Declare the constants and the state shared by the parts.
   // 3. Set up each part.
   const { LANG, URL_LANG, i18n } = setupLanguage();
-  const { t } = i18n;
+  const { t, coordName } = i18n;
 
   const FORECAST_DAYS = 3;
   const MAX_ZOOM = 11; // 市全体を一望できる範囲まで
@@ -33,7 +33,17 @@
   const HOURLY_VARS = ['cloud_cover', ...LAYERS.map((l) => l.key),
     ...LAYERS.flatMap((l) => [`wind_speed_${l.windLevel}`, `wind_direction_${l.windLevel}`])];
 
-  const $ = (id) => document.getElementById(id);
+  // Fetching forecasts and places (api.js), shared by loading, refreshing and searching.
+  const { NetworkError, DataError } = window.Api;
+  const api = window.Api.createClient({
+    fetch: (...args) => fetch(...args),
+    t,
+    isOffline: () => navigator.onLine === false,
+    forecast: { days: FORECAST_DAYS, hourlyVars: HOURLY_VARS, maxAgeMs: MAX_AGE_MS, buildGrid },
+  });
+  const { fetchForecast } = api;
+
+  const $ =(id) => document.getElementById(id);
   const el = {
     place: $('place'), time: $('time'), status: $('status'), statusText: $('status-text'), retry: $('retry'), total: $('total'), layers: $('layers'),
     flow: $('flow'), windows: $('windows'), timeline: $('timeline'),
@@ -54,6 +64,7 @@
   setupUpdateCheck();
   setupCopyCoords();
   const home = setupHome();
+  setupSearch();
 
   // --- 地図 ---
   const map = L.map('map', { worldCopyJump: false, maxZoom: MAX_ZOOM }).setView([DEFAULT_PLACE.lat, DEFAULT_PLACE.lon], DEFAULT_ZOOM);
@@ -115,19 +126,7 @@
     return t('unexpected');
   }
 
-  // --- データ取得(api.js) ---
-  const { NetworkError, DataError } = window.Api;
-  const api = window.Api.createClient({
-    fetch: (...args) => fetch(...args),
-    t,
-    isOffline: () => navigator.onLine === false,
-    forecast: { days: FORECAST_DAYS, hourlyVars: HOURLY_VARS, maxAgeMs: MAX_AGE_MS, buildGrid },
-  });
-  const { fetchForecast } = api;
-
   // --- 目的地の選択 ---
-  const { coordName } = i18n;
-
   // URL に地点を書くのは、URL で開いたときか、利用者が地点を選んだ後だけ。
   // 何も付けずに開いたままなら URL を変えない(#11 の「保存した初期位置」を URL より優先させないため)。
   let urlActive = false;
@@ -504,64 +503,6 @@
   });
   window.addEventListener('resize', () => { if (state.center) renderTimeline(); });
 
-  // --- 地名検索(search.js) ---
-  const { searchPlaces } = window.Search.create({
-    fetchJson: api.fetchJson, lang: LANG, t, rankGsiResults, logError: console.error,
-  });
-
-  let searchSeq = 0;
-  let searchingName = null; // 検索中の語。同じ語で続けて押されても問い合わせを重ねない(Nominatim は1秒に1回まで、#82)
-  el.search.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const name = el.searchInput.value.trim();
-    if (!name || name === searchingName) return;
-    const list = el.searchResults;
-    // 「緯度, 経度」ならその地点を開く。
-    const coords = parseCoords(name);
-    if (coords) {
-      ++searchSeq; // 検索中の結果が遅れて届いても一覧を出さない
-      searchingName = null;
-      list.hidden = true;
-      selectPlace({ name: coordName(coords.lat, coords.lon), ...coords, named: false }, { pan: true, zoom: SEARCH_ZOOM });
-      return;
-    }
-    const addEmpty = (text) => {
-      const li = document.createElement('li');
-      li.className = 'empty';
-      li.textContent = text;
-      list.replaceChildren(li);
-      list.hidden = false;
-    };
-    // 続けて検索したとき、遅れて届いた前の結果で一覧を上書きしない。
-    const seq = ++searchSeq;
-    searchingName = name;
-    addEmpty(t('searching'));
-    try {
-      const results = await searchPlaces(name);
-      if (seq !== searchSeq) return;
-      if (!results.length) { addEmpty(t('notFound')); return; }
-      list.replaceChildren(...results.map((r) => {
-        const li = document.createElement('li');
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.textContent = r.label;
-        btn.addEventListener('click', () => {
-          list.hidden = true;
-          selectPlace({ name: r.name, lat: r.lat, lon: r.lon, named: true }, { pan: true, zoom: SEARCH_ZOOM });
-        });
-        li.append(btn);
-        return li;
-      }));
-      list.hidden = false;
-    } catch (err) {
-      console.error(err);
-      if (seq !== searchSeq) return;
-      addEmpty(errorMessage(err, 'search'));
-    } finally {
-      if (seq === searchSeq) searchingName = null;
-    }
-  });
-
   // --- 起動 ---
   function openPlace(p, zoom) {
     const place = { name: p.name || coordName(p.lat, p.lon), lat: p.lat, lon: p.lon, named: Boolean(p.name) };
@@ -742,5 +683,69 @@
     });
 
     return { saved: () => saved, renderToggle };
+  }
+
+  // The search box (search.js). A "latitude, longitude" opens that point;
+  // anything else is searched as a place name and the results are listed.
+  function setupSearch() {
+    const { searchPlaces } = window.Search.create({
+      fetchJson: api.fetchJson, lang: LANG, t, rankGsiResults, logError: console.error,
+    });
+    const list = el.searchResults;
+
+    // Each search gets a number, so a late result from an earlier search does not overwrite the list.
+    let searchSeq = 0;
+    // The name being searched. Pressing search again with the same name does not send another
+    // request (Nominatim allows one request per second, #82).
+    let searchingName = null;
+
+    const showMessage = (text) => {
+      const li = document.createElement('li');
+      li.className = 'empty';
+      li.textContent = text;
+      list.replaceChildren(li);
+      list.hidden = false;
+    };
+
+    el.search.addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const name = el.searchInput.value.trim();
+      if (!name || name === searchingName) return;
+      const coords = parseCoords(name);
+      if (coords) {
+        ++searchSeq; // do not show the list if a search in progress returns later
+        searchingName = null;
+        list.hidden = true;
+        selectPlace({ name: coordName(coords.lat, coords.lon), ...coords, named: false }, { pan: true, zoom: SEARCH_ZOOM });
+        return;
+      }
+      const seq = ++searchSeq;
+      searchingName = name;
+      showMessage(t('searching'));
+      try {
+        const results = await searchPlaces(name);
+        if (seq !== searchSeq) return;
+        if (!results.length) { showMessage(t('notFound')); return; }
+        list.replaceChildren(...results.map((r) => {
+          const li = document.createElement('li');
+          const btn = document.createElement('button');
+          btn.type = 'button';
+          btn.textContent = r.label;
+          btn.addEventListener('click', () => {
+            list.hidden = true;
+            selectPlace({ name: r.name, lat: r.lat, lon: r.lon, named: true }, { pan: true, zoom: SEARCH_ZOOM });
+          });
+          li.append(btn);
+          return li;
+        }));
+        list.hidden = false;
+      } catch (err) {
+        console.error(err);
+        if (seq !== searchSeq) return;
+        showMessage(errorMessage(err, 'search'));
+      } finally {
+        if (seq === searchSeq) searchingName = null;
+      }
+    });
   }
 })();
