@@ -4,6 +4,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+## [0.9.0] - 2026-11-23
+
 ### 変更
 
 - 「3日間の雲」の月の帯を、月の明るさで濃さを変えず、一定の色で塗るようにしました。細い月のときに帯が暗くなり、夜の帯に埋もれて見えにくかったためです。月の形(満ち欠け)は、見出しの横に表示中の時刻の月の絵文字(🌒🌓🌔🌕 など)で示します。
@@ -147,7 +149,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.8.1...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.9.0...HEAD
+[0.9.0]: https://github.com/kazweda/finestella/releases/tag/v0.9.0
 [0.8.1]: https://github.com/kazweda/finestella/releases/tag/v0.8.1
 [0.8.0]: https://github.com/kazweda/finestella/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kazweda/finestella/releases/tag/v0.7.0
