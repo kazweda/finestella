@@ -40,6 +40,7 @@ node tools/compare/compare.js --dump <dir>    # 記録を <dir>/base.json と he
 | `search(text)` / `setHash(hash)` / `resize(width)` | 検索、URL の `#` の書き換え、窓の幅 |
 | `hide()` / `show()` / `offline()` / `online()` | 裏に回る・戻る、回線が切れる・戻る |
 | `forecast('ok' \| 'fail' \| 'error')` | 予報の配信元が答える / つながらない / 500 を返す |
+| `searchSource('ok' \| 'fail')` | 地名検索の配信元が答える / つながらない |
 | `hold(test)` / `release()` | 地名検索の応答を止めておき、あとで返す |
 | `snap(label)` | ここで記録する |
 

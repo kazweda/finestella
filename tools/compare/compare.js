@@ -79,7 +79,7 @@ async function runScene(conn, origin, scene) {
   const send = (method, params) => conn.send(method, params, sessionId);
 
   // What the network does for this scene. The scene changes it with s.forecast(), s.offline(), s.hold().
-  const net = { forecast: 'ok', offline: false, hold: null };
+  const net = { forecast: 'ok', search: 'ok', offline: false, hold: null };
   const held = [];
   let requests = [];
   let consoleLines = [];
@@ -101,6 +101,7 @@ async function runScene(conn, origin, scene) {
     if (found) {
       requests.push(short(u));
       if (net.offline) return fail('InternetDisconnected');
+      if (net.search === 'fail') return fail('ConnectionRefused');
       const respond = () => send('Fetch.fulfillRequest', { requestId, ...json(found) });
       if (net.hold && net.hold(u)) {
         held.push(respond);
@@ -215,6 +216,8 @@ async function runScene(conn, origin, scene) {
     async show() { await evaluate('__compare.setHidden(false)'); await settle(); },
     // 'ok', 'fail' (the source cannot be reached) or 'error' (it answers 500).
     forecast(mode) { net.forecast = mode; },
+    // 'ok' or 'fail' (the place-search sources cannot be reached).
+    searchSource(mode) { net.search = mode; },
     // Before open(), this only decides that the page starts offline.
     async offline() {
       net.offline = true;

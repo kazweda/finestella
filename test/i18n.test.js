@@ -7,7 +7,8 @@ const I = globalThis.I18n;
 
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
-const app = fs.readFileSync(path.join(root, 'app.js'), 'utf8');
+// 画面のスクリプトのうち、t('…') で文言を使うもの。
+const scripts = ['app.js', 'search-box.js'].map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
 const LANGS = Object.keys(I.MESSAGES);
 
 // index.html の data-i18n などに書いたキーと、要素の中身(スクリプトが動く前の表示)。
@@ -19,10 +20,10 @@ const attrRefs = [...html.matchAll(/<[^>]*data-i18n-attr="([^"]+)"[^>]*>/g)].fla
   return { key, text: value };
 }));
 
-test('index.html と app.js が使う文言は、すべての言語にある', () => {
+test('index.html と画面のスクリプトが使う文言は、すべての言語にある', () => {
   const keys = new Set([
     ...[...textRefs, ...htmlRefs, ...attrRefs].map((r) => r.key),
-    ...[...app.matchAll(/\bt\('(\w+)'/g)].map((m) => m[1]),
+    ...[...scripts.matchAll(/\bt\('(\w+)'/g)].map((m) => m[1]),
   ]);
   assert.ok(keys.size >= 40);
   for (const lang of LANGS) {
