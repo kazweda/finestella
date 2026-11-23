@@ -6,6 +6,10 @@ This English changelog starts at 0.7.0, the first version with an English interf
 
 ## [Unreleased]
 
+### Fixed
+
+- When the forecast for a newly chosen place failed to load, the cloud cover and the clouds on the map from the previous place stayed on screen under the new place's name. Now the readings show "—" and the clouds are removed from the map. Once the forecast loads, after "Reload" or when the connection comes back, it is shown as usual.
+
 ## [0.8.0] - 2026-11-23
 
 ### Added
