@@ -62,7 +62,10 @@
   let loadController = null;
   let debounceTimer = null;
 
-  setupUpdateCheck();
+  // setupUpdateCheck() also follows the current time and refreshes a stale forecast
+  // when the page comes back to the foreground, so it takes them from setupAutoRefresh().
+  const autoRefresh = setupAutoRefresh();
+  setupUpdateCheck(autoRefresh);
   setupCopyCoords();
   const home = setupHome();
   setupSearch();
@@ -271,40 +274,10 @@
     return t('moonPartial', c.from ? clock(c.from) : '', c.to ? clock(c.to) : '');
   }
 
-  // --- 自動更新 ---
-  // 再生も時刻の操作もせずに「現在」を見ているか。このときだけ、時刻の進みに合わせて表示を進める。
+  // Whether the user is watching "now" without playing or moving the time.
+  // Only then does the display move along with the clock (apply() and setupAutoRefresh()).
   function isFollowingNow() {
     return Boolean(state.center) && !state.timer && Math.round(state.t) === state.nowIndex;
-  }
-
-  // 「現在」の位置を時刻の進みに合わせる(通信なし)。
-  function tick() {
-    if (!state.center) return;
-    const next = currentIndex(state.epochs, Date.now());
-    if (next === state.nowIndex) return;
-    const following = isFollowingNow();
-    state.nowIndex = next;
-    renderWindows(); // ねらい目は「現在」から先が対象
-    if (following) setTime(next);
-  }
-
-  // 取得から MAX_AGE_MS 以上たっていれば、表示中のタブでだけ裏で取り直す。
-  // 失敗したら今のデータを残し、古いことを表示する。
-  async function refreshIfStale() {
-    const place = state.place;
-    if (document.hidden || state.refreshing || !state.center || state.loadedPlace !== place) return;
-    if (Date.now() - state.fetchedAt < MAX_AGE_MS) return;
-    state.refreshing = true;
-    try {
-      const data = await fetchForecast(place);
-      if (state.place === place && state.loadedPlace === place) apply(place, data, { keepTime: true });
-    } catch (err) {
-      console.error(err);
-      if (state.loadedPlace === place) state.refreshFailed = !(err instanceof NetworkError) ? 'error' : err.offline ? 'offline' : 'unreachable';
-    } finally {
-      state.refreshing = false;
-      renderFetched();
-    }
   }
 
   const clockText = (date) => `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
@@ -319,19 +292,6 @@
     el.fetched.classList.toggle('stale', Boolean(state.refreshFailed));
     el.fetched.hidden = false;
   }
-
-  setInterval(tick, 60 * 1000);
-  setInterval(refreshIfStale, 5 * 60 * 1000);
-  // オフラインから戻ったら、読み込めなかった予報を取り直す。
-  window.addEventListener('online', () => {
-    if (state.loadFailed && state.place) {
-      showStatus(t('loading'));
-      load(state.place);
-    } else {
-      refreshIfStale();
-    }
-  });
-  window.addEventListener('online', refreshIfStale);
 
   // --- 描画 ---
   function setTime(t) {
@@ -539,12 +499,62 @@
     return { LANG: lang, URL_LANG: urlLang, i18n };
   }
 
+  // Keep the forecast up to date while the page stays open:
+  // follow the current time, refetch a stale forecast, and reload after coming back online.
+  // Everything here runs from timers and events, after the startup flow has finished.
+  // Returns tick() and refreshIfStale() for setupUpdateCheck().
+  function setupAutoRefresh() {
+    // Move "now" along with the clock (no network).
+    function tick() {
+      if (!state.center) return;
+      const next = currentIndex(state.epochs, Date.now());
+      if (next === state.nowIndex) return;
+      const following = isFollowingNow();
+      state.nowIndex = next;
+      renderWindows(); // the observing windows start from "now"
+      if (following) setTime(next);
+    }
+
+    // Refetch in the background once the forecast is MAX_AGE_MS old, only while the tab is visible.
+    // On failure, keep the current data and show that it is stale.
+    async function refreshIfStale() {
+      const place = state.place;
+      if (document.hidden || state.refreshing || !state.center || state.loadedPlace !== place) return;
+      if (Date.now() - state.fetchedAt < MAX_AGE_MS) return;
+      state.refreshing = true;
+      try {
+        const data = await fetchForecast(place);
+        if (state.place === place && state.loadedPlace === place) apply(place, data, { keepTime: true });
+      } catch (err) {
+        console.error(err);
+        if (state.loadedPlace === place) state.refreshFailed = !(err instanceof NetworkError) ? 'error' : err.offline ? 'offline' : 'unreachable';
+      } finally {
+        state.refreshing = false;
+        renderFetched();
+      }
+    }
+
+    setInterval(tick, 60 * 1000);
+    setInterval(refreshIfStale, 5 * 60 * 1000);
+    // Back online: reload a forecast that failed to load, or refresh a stale one.
+    window.addEventListener('online', () => {
+      if (state.loadFailed && state.place) {
+        showStatus(t('loading'));
+        load(state.place);
+      } else {
+        refreshIfStale();
+      }
+    });
+    window.addEventListener('online', refreshIfStale);
+
+    return { tick, refreshIfStale };
+  }
+
   // Reload the page when a new build has been deployed (#59, update.js).
   // The place comes back from the URL or the saved home, so reloading loses almost nothing.
   // When the page comes back to the foreground, this also follows the current time (tick)
-  // and refreshes a stale forecast (refreshIfStale). Both run only after that event,
-  // so this can be called early in the startup flow.
-  function setupUpdateCheck() {
+  // and refreshes a stale forecast (refreshIfStale), both from setupAutoRefresh().
+  function setupUpdateCheck({ tick, refreshIfStale }) {
     const currentBuild = window.Update.currentBuild(document);
     let hiddenAt = 0;
 
