@@ -17,6 +17,18 @@ test('CHANGELOG に [Unreleased] と、日付付きの最新の版がある', ()
   assert.match(changelog, new RegExp(`^\\[${latest.replace(/\./g, '\\.')}\\]: .+/v${latest}$`, 'm'), '最新の版へのリンクがない');
 });
 
+// The English changelog follows the Japanese one, which stays the source of truth for version numbers.
+test('CHANGELOG.en.md の最新の版は、CHANGELOG.md と同じ', () => {
+  const en = fs.readFileSync(path.join(root, 'CHANGELOG.en.md'), 'utf8');
+  const enLatest = (en.match(/^## \[(\d+\.\d+\.\d+)\] - \d{4}-\d{2}-\d{2}$/m) || [])[1];
+  assert.match(en, /^## \[Unreleased\]$/m);
+  assert.equal(enLatest, latest, 'CHANGELOG.en.md の最新の版が CHANGELOG.md とずれている');
+  assert.ok(en.indexOf('## [Unreleased]') < en.indexOf(`## [${latest}]`), '[Unreleased] は最新の版より上に置く');
+  assert.match(en, new RegExp(`^\\[${latest.replace(/\./g, '\\.')}\\]: .+/v${latest}$`, 'm'), '最新の版へのリンクがない');
+  const dateOf = (text) => (text.match(new RegExp(`^## \\[${latest.replace(/\./g, '\\.')}\\] - (\\S+)$`, 'm')) || [])[1];
+  assert.equal(dateOf(en), dateOf(changelog), '最新の版の日付がずれている');
+});
+
 test('自前の JS と CSS は、すべて ?v=__BUILD__ 付きで読み込む', () => {
   const refs = [...html.matchAll(/(?:src|href)="(?!https?:|\/\/)([^"]+\.(?:js|css))(?:\?v=([^"]*))?"/g)];
   const files = refs.map((m) => m[1]).sort();

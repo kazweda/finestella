@@ -4,10 +4,13 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+## [0.8.0] - 2026-11-23
+
 ### 追加
 
 - 検索欄に「緯度, 経度」(例:`35.6812, 139.7671`)を入れると、その地点を開くようにしました。コピーした緯度・経度や Google マップの値をそのまま貼り付けられます。
 - 英語の画面で、日本の地名をローマ字で探しやすくしました。ハイフンのない町名(Aizuwakamatsu)、町名(Otemachi, Matsuyama)、これまで見つからなかった地名(Yamanakako)も、OpenStreetMap の地名検索(Nominatim)で見つかります。「Moab Utah」のようなスペース区切りの「町名 州名」も見つかります。検索欄の入力例は「Mauna Kea, Hawaii」として、カンマの後に州名や県名を付ければ絞り込めることを示しました。
+- 英語の更新履歴([CHANGELOG.en.md](CHANGELOG.en.md))を作りました。英語の画面の「Changelog」からは、英語の更新履歴を開きます。
 
 ### 変更
 
@@ -127,7 +130,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.7.0...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/kazweda/finestella/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kazweda/finestella/releases/tag/v0.7.0
 [0.6.0]: https://github.com/kazweda/finestella/releases/tag/v0.6.0
 [0.5.1]: https://github.com/kazweda/finestella/releases/tag/v0.5.1
