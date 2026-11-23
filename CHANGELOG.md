@@ -4,6 +4,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+## [0.8.1] - 2026-11-23
+
 ### 修正
 
 - 別の地点を選んで予報を読み込めなかったとき、前の地点の雲量や地図の雲が、新しい地点の名前の下に残っていたのを直しました。読み込めなかったときは、雲量などを「—」にし、地図の雲を消します。「再読み込み」や回線が戻ったときに読み込めれば、これまでどおり表示します。
@@ -135,7 +137,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.8.0...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.8.1...HEAD
+[0.8.1]: https://github.com/kazweda/finestella/releases/tag/v0.8.1
 [0.8.0]: https://github.com/kazweda/finestella/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kazweda/finestella/releases/tag/v0.7.0
 [0.6.0]: https://github.com/kazweda/finestella/releases/tag/v0.6.0
