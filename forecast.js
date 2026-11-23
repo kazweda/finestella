@@ -48,6 +48,10 @@
     return a + (b - a) * (t - i);
   }
 
+  // The opacity (0–255) of the clouds drawn on the map for a cloud cover (%). Even at 100% it stays
+  // at about 78% (200), so place names and roads show through. A missing value is transparent.
+  const cloudAlpha = (cover) => (cover == null ? 0 : Math.round(200 * Math.pow(cover / 100, 0.85)));
+
   // 格子を u,v(0〜1)で双線形補間する。欠測点は除いて重みを配分する。
   function sampleGrid(values, size, u, v) {
     const x = clamp(u, 0, 1) * (size - 1);
@@ -87,6 +91,13 @@
   // APIの現地時刻文字列をエポックミリ秒へ変換する。
   const localToEpoch = (time, utcOffsetSeconds) =>
     Date.parse(`${time}:00Z`) - utcOffsetSeconds * 1000;
+
+  // The reverse of localToEpoch(): epoch milliseconds to a local time string like the API's
+  // ('YYYY-MM-DDTHH:MM'), rounded to the minute.
+  function epochToLocal(ms, utcOffsetSeconds) {
+    const local = Math.round(ms / 60000) * 60000 + utcOffsetSeconds * 1000;
+    return new Date(local).toISOString().slice(0, 16);
+  }
 
   // 1時間ごとの時刻(エポックミリ秒)のうち、nowMs を含む時刻の番号。予報の範囲外なら端に寄せる。
   function currentIndex(epochs, nowMs) {
@@ -239,6 +250,39 @@
     return result;
   }
 
+  // The sky over the forecast period, for the observing windows and the 3-day timeline.
+  // epochs are the hourly times; the period includes 30 minutes around each of them.
+  // sky: day, twilight and night from the Sun's altitude, to the minute. Sunrise and sunset are
+  //   at −0.83°, astronomical twilight at −18° (the same as for the observing windows).
+  // dark: when the Sun is below −18°.
+  // moonDown / moonUp: when the Moon is below / above the horizon. Moonrise and moonset are when the
+  //   Moon's center is at −0.83° (refraction and the Moon's radius). Together they cover the period.
+  function skyPeriods(epochs, lat, lon) {
+    const from = epochs[0] - 30 * 60 * 1000;
+    const to = epochs[epochs.length - 1] + 30 * 60 * 1000;
+    const alt = (ms) => sunAltitude(ms, lat, lon);
+    const dark = intervalsBelow(alt, from, to, -18);
+    const cuts = [from, to, ...[-0.83, -18].flatMap((level) => findCrossings(alt, from, to, level).map((x) => x.ms))]
+      .sort((a, b) => a - b);
+    const sky = [];
+    for (let k = 0; k + 1 < cuts.length; k++) {
+      const [start, end] = [cuts[k], cuts[k + 1]];
+      if (end <= start) continue;
+      const a = alt((start + end) / 2);
+      sky.push({ start, end, kind: a > -0.83 ? 'day' : a > -18 ? 'twilight' : 'night' });
+    }
+
+    const moon = (ms) => moonAltitude(ms, lat, lon);
+    const moonDown = intervalsBelow(moon, from, to, -0.83);
+    const moonUp = [];
+    let cursor = from;
+    for (const d of [...moonDown, { start: to, end: to }]) {
+      if (d.start > cursor) moonUp.push({ start: cursor, end: d.start });
+      cursor = d.end;
+    }
+    return { sky, dark, moonDown, moonUp };
+  }
+
   // 正午で区切った「夜」ごとに、暗くて雲の少ない連続時間のうち最良のものを返す。
   // 雲量は1時間ごとの値で、各時刻の前後30分を代表するとみなす。暗さは dark(intervalsBelow の結果)で
   // 分単位に区切る。撮影に使えない minMinutes 未満の時間帯は除く。
@@ -276,7 +320,7 @@
   }
 
   root.Forecast = {
-    buildGrid, valueAt, sampleGrid, windFlow, compassIndex, localToEpoch,
-    sunAltitude, moonAltitude, moonIllumination, moonCondition, findCrossings, intervalsBelow, findObservingWindows, wrapLon, currentIndex, reindexTime,
+    buildGrid, valueAt, sampleGrid, cloudAlpha, windFlow, compassIndex, localToEpoch, epochToLocal,
+    sunAltitude, moonAltitude, moonIllumination, moonCondition, findCrossings, intervalsBelow, skyPeriods, findObservingWindows, wrapLon, currentIndex, reindexTime,
   };
 })(globalThis);
