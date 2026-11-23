@@ -12,6 +12,11 @@ module.exports = [
   { name: 'load en', locale: 'en-US', run: async (s) => { await s.open('?lang=en'); await s.snap('loaded'); } },
   { name: 'load place URL', run: async (s) => { await s.open(SAPPORO); await s.snap('loaded'); } },
   { name: 'load place URL en', locale: 'en-US', run: async (s) => { await s.open(`${SAPPORO}&lang=en`); await s.snap('loaded'); } },
+  // --- Weather the usual fixtures never show (#118, fixtures.js) ---
+  { name: 'overcast', run: async (s) => { await s.open('#-25.000,140.000'); await s.snap('no window'); } },
+  { name: 'clear', run: async (s) => { await s.open('#-35.000,140.000'); await s.snap('no notable cloud'); } },
+  { name: 'no wind direction', run: async (s) => { await s.open('#-45.000,140.000'); await s.snap('layer only'); } },
+
   // --- Language (#122) ---
   { name: 'browser language en', locale: 'en-US', run: async (s) => { await s.open(SAPPORO); await s.snap('loaded'); } },
   {

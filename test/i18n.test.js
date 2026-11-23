@@ -8,7 +8,7 @@ const I = globalThis.I18n;
 const root = path.join(__dirname, '..');
 const html = fs.readFileSync(path.join(root, 'index.html'), 'utf8');
 // 画面のスクリプトのうち、t('…') で文言を使うもの。
-const scripts = ['app.js', 'search-box.js'].map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
+const scripts = ['app.js', 'render.js', 'search-box.js'].map((f) => fs.readFileSync(path.join(root, f), 'utf8')).join('\n');
 const LANGS = Object.keys(I.MESSAGES);
 
 // index.html の data-i18n などに書いたキーと、要素の中身(スクリプトが動く前の表示)。
