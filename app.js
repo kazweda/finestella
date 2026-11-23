@@ -6,7 +6,7 @@
     skyPeriods, findObservingWindows, wrapLon, currentIndex, reindexTime,
   } = window.Forecast;
   const {
-    rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, parseCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
+    rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
   // --- Startup flow (#88) ---
@@ -696,76 +696,17 @@
     return { saved: () => saved, renderToggle };
   }
 
-  // The search box (search.js). A "latitude, longitude" opens that point;
-  // anything else is searched as a place name and the results are listed.
-  // Returns close() for selectPlace().
+  // The search box (search-box.js). A place chosen there opens at town level (SEARCH_ZOOM).
+  // Place names are searched with search.js. Returns close() for selectPlace().
   function setupSearch() {
     const { searchPlaces } = window.Search.create({
       fetchJson: api.fetchJson, lang: LANG, t, rankGsiResults, logError: console.error,
     });
-    const list = el.searchResults;
-
-    // Each search gets a number, so a late result from an earlier search does not overwrite the list.
-    let searchSeq = 0;
-    // The name being searched. Pressing search again with the same name does not send another
-    // request (Nominatim allows one request per second, #82).
-    let searchingName = null;
-
-    const showMessage = (text) => {
-      const li = document.createElement('li');
-      li.className = 'empty';
-      li.textContent = text;
-      list.replaceChildren(li);
-      list.hidden = false;
-    };
-
-    el.search.addEventListener('submit', async (e) => {
-      e.preventDefault();
-      const name = el.searchInput.value.trim();
-      if (!name || name === searchingName) return;
-      const coords = parseCoords(name);
-      if (coords) {
-        selectPlace({ name: coordName(coords.lat, coords.lon), ...coords, named: false }, { pan: true, zoom: SEARCH_ZOOM });
-        return;
-      }
-      const seq = ++searchSeq;
-      searchingName = name;
-      showMessage(t('searching'));
-      try {
-        const results = await searchPlaces(name);
-        if (seq !== searchSeq) return;
-        if (!results.length) { showMessage(t('notFound')); return; }
-        list.replaceChildren(...results.map((r) => {
-          const li = document.createElement('li');
-          const btn = document.createElement('button');
-          btn.type = 'button';
-          btn.textContent = r.label;
-          btn.addEventListener('click', () => {
-            selectPlace({ name: r.name, lat: r.lat, lon: r.lon, named: true }, { pan: true, zoom: SEARCH_ZOOM });
-          });
-          li.append(btn);
-          return li;
-        }));
-        list.hidden = false;
-      } catch (err) {
-        console.error(err);
-        if (seq !== searchSeq) return;
-        showMessage(errorMessage(err, 'search'));
-      } finally {
-        if (seq === searchSeq) searchingName = null;
-      }
+    return window.SearchBox.setup({
+      form: el.search, input: el.searchInput, list: el.searchResults, searchPlaces, t, coordName,
+      errorMessage: (err) => errorMessage(err, 'search'),
+      choose: (place) => selectPlace(place, { pan: true, zoom: SEARCH_ZOOM }),
     });
-
-    return {
-      // Close the list when a place is chosen in any way (a result, coordinates, the map, the URL), and
-      // ignore a search still in progress, so its late result does not open the list again (#106).
-      // The search box keeps its text.
-      close() {
-        ++searchSeq;
-        searchingName = null;
-        list.hidden = true;
-      },
-    };
   }
 
   // Open the place given in the URL; without one, the saved home place, or else Nobeyama.

@@ -307,6 +307,26 @@ module.exports = [
     },
   },
   {
+    name: 'search fails',
+    run: async (s) => {
+      await s.open('?lang=ja');
+      s.searchSource('fail');
+      await s.search('松本');
+      await s.snap('error');
+    },
+  },
+  {
+    name: 'same name while searching',
+    run: async (s) => {
+      await s.open('?lang=ja');
+      s.hold(() => true);
+      await s.search('長野');
+      await s.search('長野');
+      await s.release();
+      await s.snap('sent once');
+    },
+  },
+  {
     name: 'search en',
     locale: 'en-US',
     run: async (s) => {

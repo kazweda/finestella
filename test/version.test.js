@@ -32,7 +32,7 @@ test('CHANGELOG.en.md の最新の版は、CHANGELOG.md と同じ', () => {
 test('自前の JS と CSS は、すべて ?v=__BUILD__ 付きで読み込む', () => {
   const refs = [...html.matchAll(/(?:src|href)="(?!https?:|\/\/)([^"]+\.(?:js|css))(?:\?v=([^"]*))?"/g)];
   const files = refs.map((m) => m[1]).sort();
-  assert.deepEqual(files, ['api.js', 'app.js', 'basemap.js', 'forecast.js', 'i18n.js', 'places.js', 'search.js', 'style.css', 'timeline.js', 'update.js']);
+  assert.deepEqual(files, ['api.js', 'app.js', 'basemap.js', 'forecast.js', 'i18n.js', 'places.js', 'search-box.js', 'search.js', 'style.css', 'timeline.js', 'update.js']);
   for (const [, file, v] of refs) assert.equal(v, '__BUILD__', `${file} に ?v=__BUILD__ が付いていない`);
 });
 
