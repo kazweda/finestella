@@ -6,6 +6,10 @@ This English changelog starts at 0.7.0, the first version with an English interf
 
 ## [Unreleased]
 
+### Changed
+
+- In "Clouds over 3 days", the band showing when the Moon is up is now drawn in one color instead of getting brighter with the Moon's phase. A thin moon made the band dark and hard to see against the night. The Moon's phase at the time shown now appears as an emoji (🌒🌓🌔🌕 and so on) next to the heading.
+
 ### Fixed
 
 - Different places with the same name in search results could not be told apart (for example, "Mauna Kea, Hawaii" listed the summit on the Big Island and a place on Maui as the same two lines). Only for such results, the county or city is now added, as in "Mauna Kea, Hawaii County, Hawaii, United States".

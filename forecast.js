@@ -186,6 +186,16 @@
     return (1 - cosElong) / 2;
   }
 
+  // The Moon's phase as the angle from the Sun along the ecliptic, in degrees (0 to 360):
+  // 0 is new moon, 90 first quarter, 180 full moon, 270 last quarter (#52).
+  function moonPhase(epochMs) {
+    const m = moonEcliptic(epochMs);
+    return ((((m.lon - m.sunLon) / RAD) % 360) + 360) % 360;
+  }
+
+  // The phase in eight steps, for the moon emoji: 0 new, 2 first quarter, 4 full, 6 last quarter.
+  const moonPhaseIndex = (epochMs) => Math.round(moonPhase(epochMs) / 45) % 8;
+
   // 時間帯 [start, end] の月の条件。moonDown は月が沈んでいる時間帯(intervalsBelow の結果)。
   // 'none': ずっと沈んでいる / 'up': ずっと出ている /
   // 'partial': 一部だけ沈んでいる。沈んでいる最も長い時間帯を from〜to で返す(端と同じなら null)。
@@ -321,6 +331,6 @@
 
   root.Forecast = {
     buildGrid, valueAt, sampleGrid, cloudAlpha, windFlow, compassIndex, localToEpoch, epochToLocal,
-    sunAltitude, moonAltitude, moonIllumination, moonCondition, findCrossings, intervalsBelow, skyPeriods, findObservingWindows, wrapLon, currentIndex, reindexTime,
+    sunAltitude, moonAltitude, moonIllumination, moonPhase, moonPhaseIndex, moonCondition, findCrossings, intervalsBelow, skyPeriods, findObservingWindows, wrapLon, currentIndex, reindexTime,
   };
 })(globalThis);

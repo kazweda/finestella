@@ -30,7 +30,7 @@
       timelineHeading: '3日間の雲',
       now: '現在',
       sliderLabel: '表示する時刻',
-      timelineNoteHtml: '上の帯は空の暗さ(<span class="swatch day"></span>昼 <span class="swatch twilight"></span>薄明 <span class="swatch night"></span>夜)、その下の細い帯は月が出ている時間です(<span class="swatch moon"></span>明るいほど満月に近い)。雲の動きは1時間ごとの予報を補間した表示です。実際の雲の形とは異なることがあります。',
+      timelineNoteHtml: '上の帯は空の暗さ(<span class="swatch day"></span>昼 <span class="swatch twilight"></span>薄明 <span class="swatch night"></span>夜)、その下の細い帯は月が出ている時間です(<span class="swatch moon"></span>月)。見出しの横の絵文字は、表示中の時刻の月の形です。雲の動きは1時間ごとの予報を補間した表示です。実際の雲の形とは異なることがあります。',
       creditWeatherHtml: `Weather data by ${OPEN_METEO}(${CC_BY})。雲の分布と動きは1時間ごとの予報を補間して表示しています。`,
       creditSearchHtml: `地名検索:${link('https://maps.gsi.go.jp/', '国土地理院')}。海外の地名は Location data based on ${link('https://www.geonames.org/', 'GeoNames')}(${CC_BY})`,
       creditMapGsiHtml: `背景地図:${link('https://maps.gsi.go.jp/development/ichiran.html', '地理院タイル')}(淡色地図)の色を反転するなど加工して作成。日本周辺以外の海岸線:Shoreline data is derived from: United States. National Imagery and Mapping Agency.`,
@@ -73,6 +73,7 @@
       avgCloud: (pct) => `平均雲量 ${pct}%`,
       moonNone: '月なし',
       moonUp: (pct) => `月あり(輝面比 ${pct}%)`,
+      moonPhaseLabel: (pct) => `表示中の時刻の月(輝面比 ${pct}%)`,
       moonPartial: (from, to) => `月なし ${from}〜${to}`,
 
       // --- 操作 ---
@@ -112,7 +113,7 @@
       timelineHeading: 'Clouds over 3 days',
       now: 'Now',
       sliderLabel: 'Time to show',
-      timelineNoteHtml: 'The top band shows how dark the sky is (<span class="swatch day"></span>day <span class="swatch twilight"></span>twilight <span class="swatch night"></span>night), and the thin band below it shows when the Moon is up (<span class="swatch moon"></span>brighter means closer to full). Cloud motion is interpolated from hourly forecasts and may differ from the actual shape of the clouds.',
+      timelineNoteHtml: 'The top band shows how dark the sky is (<span class="swatch day"></span>day <span class="swatch twilight"></span>twilight <span class="swatch night"></span>night), and the thin band below it shows when the Moon is up (<span class="swatch moon"></span>moon). The emoji next to the heading shows the Moon’s phase at the time shown. Cloud motion is interpolated from hourly forecasts and may differ from the actual shape of the clouds.',
       creditWeatherHtml: `Weather data by ${OPEN_METEO} (${CC_BY}). Cloud cover and motion are interpolated from hourly forecasts.`,
       creditSearchHtml: `Place search: Location data based on ${link('https://www.geonames.org/', 'GeoNames')} (${CC_BY}). Japanese place names: ${link('https://maps.gsi.go.jp/', 'GSI Japan')} and © ${link('https://www.openstreetmap.org/copyright', 'OpenStreetMap')} contributors.`,
       creditMapGsiHtml: `Base map: modified from ${link('https://maps.gsi.go.jp/development/ichiran.html', 'GSI Tiles')} (pale map, colors inverted). Shorelines outside Japan: Shoreline data is derived from: United States. National Imagery and Mapping Agency.`,
@@ -151,6 +152,7 @@
       avgCloud: (pct) => `avg. cloud ${pct}%`,
       moonNone: 'No moon',
       moonUp: (pct) => `Moon up (${pct}% illuminated)`,
+      moonPhaseLabel: (pct) => `Moon at the time shown (${pct}% illuminated)`,
       moonPartial: (from, to) => (from && to ? `No moon ${from} – ${to}` : from ? `No moon from ${from}` : `No moon until ${to}`),
 
       play: '▶ Play',
