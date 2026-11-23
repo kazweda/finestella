@@ -10,12 +10,15 @@
   } = window.Places;
 
   // --- Startup flow (#88) ---
-  // 1. Decide the language first, since the constants below use t().
+  // 1. Decide the language first (i18n.js: the texts of the page and the language switch in the footer),
+  //    since the constants below use t().
   // 2. Declare the constants and the state shared by the parts.
   // 3. Set up each part, then open the first place.
   // Below the startup flow there are only function declarations (they are hoisted, so they can be
   // called before they appear). Everything they share is declared here, before the first call.
-  const { LANG, URL_LANG, i18n } = setupLanguage();
+  const { LANG, URL_LANG, i18n } = window.I18n.setupPage({
+    doc: document, location, navigator, getStorage: () => window.localStorage,
+  });
   const { t, coordName, formatTime } = i18n;
 
   const FORECAST_DAYS = 3;
@@ -416,38 +419,6 @@
   }
 
   // --- Parts (in the order of the startup flow) ---
-
-  // Decide the language of the page (#63), fill in its texts, and set up the language switch in the footer.
-  // The language comes from the URL's lang, then the language chosen on this device, then the browser's settings.
-  // The URL's lang is for opening a shared place in the same language, so it is not saved on the device
-  // (only pressing the switch saves it).
-  function setupLanguage() {
-    const LANG_KEY = 'finestella:lang';
-    const urlLang = new URLSearchParams(location.search).get('lang');
-    const lang = window.I18n.pickLang({
-      url: urlLang,
-      saved: (() => { try { return window.localStorage.getItem(LANG_KEY); } catch { return null; } })(),
-      browser: navigator.languages?.length ? navigator.languages : [navigator.language],
-    });
-    const i18n = window.I18n.create(lang);
-    document.documentElement.lang = lang;
-    window.I18n.applyStatic(document, i18n);
-
-    // "English / 日本語" in the footer. The current language is marked to look unpressable; pressing a language
-    // saves it on this device and reopens the page at the same place.
-    for (const a of document.querySelectorAll('.lang-switch [data-lang]')) {
-      if (a.dataset.lang === lang) a.setAttribute('aria-current', 'true');
-      a.addEventListener('click', (e) => {
-        e.preventDefault();
-        try { window.localStorage.setItem(LANG_KEY, a.dataset.lang); } catch { /* the URL still switches it */ }
-        const q = new URLSearchParams(location.search);
-        q.set('lang', a.dataset.lang);
-        location.assign(`${location.pathname}?${q}${location.hash}`);
-      });
-    }
-
-    return { LANG: lang, URL_LANG: urlLang, i18n };
-  }
 
   // The map, its base map and legend, and choosing a place by clicking on it.
   // It starts at Nobeyama; openInitialPlace() then moves it to the first place.

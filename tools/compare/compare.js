@@ -151,16 +151,21 @@ async function runScene(conn, origin, scene) {
   // A mouse event with the left button (button: 'none' for a move without a press).
   const mouse = (type, { x, y }, extra = {}) => send('Input.dispatchMouseEvent', { type, x, y, button: 'left', ...extra });
 
+  // Start loading a page with go(), and wait until the first place has loaded.
+  async function reopen(go) {
+    const done = new Promise((resolve) => { loaded = resolve; });
+    await go();
+    await done;
+    if (net.offline) await evaluate('__compare.setOnline(false)');
+    await settle();
+    await s.advance(300); // selectPlace() waits 300 ms before loading
+  }
+
   const snapshots = [];
   const s = {
     // Open the page at the given URL (from "?" or "#") and wait until the first place has loaded.
     async open(query = '') {
-      const done = new Promise((resolve) => { loaded = resolve; });
-      await send('Page.navigate', { url: `${origin}/${query}` });
-      await done;
-      if (net.offline) await evaluate('__compare.setOnline(false)');
-      await settle();
-      await s.advance(300); // selectPlace() waits 300 ms before loading
+      await reopen(() => send('Page.navigate', { url: `${origin}/${query}` }));
     },
     // Move the clock, firing the timers that fall due.
     async advance(ms) {
@@ -170,6 +175,10 @@ async function runScene(conn, origin, scene) {
     async click(selector) {
       await evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`);
       await settle();
+    },
+    // Click something that opens the page again (the language switch), and wait as open() does.
+    async clickAndReload(selector) {
+      await reopen(() => evaluate(`document.querySelector(${JSON.stringify(selector)}).click()`));
     },
     // Click a point on the map, as a fraction of its width and height.
     async clickMap(fx = 0.65, fy = 0.6) {

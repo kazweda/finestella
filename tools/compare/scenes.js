@@ -12,6 +12,16 @@ module.exports = [
   { name: 'load en', locale: 'en-US', run: async (s) => { await s.open('?lang=en'); await s.snap('loaded'); } },
   { name: 'load place URL', run: async (s) => { await s.open(SAPPORO); await s.snap('loaded'); } },
   { name: 'load place URL en', locale: 'en-US', run: async (s) => { await s.open(`${SAPPORO}&lang=en`); await s.snap('loaded'); } },
+  // --- Language (#122) ---
+  { name: 'browser language en', locale: 'en-US', run: async (s) => { await s.open(SAPPORO); await s.snap('loaded'); } },
+  {
+    name: 'language switch',
+    run: async (s) => {
+      await s.open(SAPPORO);
+      await s.clickAndReload('.lang-switch [data-lang="en"]');
+      await s.snap('switched to en');
+    },
+  },
   { name: 'load map=ofm', run: async (s) => { await s.open('?lang=ja&map=ofm'); await s.snap('loaded'); } },
   { name: 'load hash URL', run: async (s) => { await s.open('#36.100,138.200'); await s.snap('loaded'); } },
   {

@@ -35,6 +35,7 @@ node tools/compare/compare.js --dump <dir>    # 記録を <dir>/base.json と he
 | `open(query)` | `?…` や `#…` を付けて開き、最初の地点を読み込み終えるまで待つ |
 | `advance(ms)` | 時計を進める |
 | `click(selector)` / `clickMap(fx, fy)` | ボタンを押す / 地図の位置(幅と高さの割合)をタップする |
+| `clickAndReload(selector)` | 押すとページを開き直すもの(フッターの言語の切り替え)を押し、`open()` と同じく読み込み終えるまで待つ |
 | `slider(value)` / `timelineDown(fx)` / `timelineMove(fx, pressed)` / `timelineUp(fx)` | 時刻の操作 |
 | `search(text)` / `setHash(hash)` / `resize(width)` | 検索、URL の `#` の書き換え、窓の幅 |
 | `hide()` / `show()` / `offline()` / `online()` | 裏に回る・戻る、回線が切れる・戻る |

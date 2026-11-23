@@ -226,5 +226,38 @@
     }
   }
 
-  root.I18n = { MESSAGES, LANGS, pickLang, create, applyStatic };
+  // Decide the language of the page (#63), fill in its texts, and set up the language switch in the footer.
+  // The language comes from the URL's lang, then the language chosen on this device, then the browser's settings.
+  // The URL's lang is for opening a shared place in the same language, so it is not saved on the device
+  // (only pressing the switch saves it).
+  // doc, location, navigator: the page's. getStorage: returns localStorage (reading it can throw when site data is blocked).
+  function setupPage({ doc, location, navigator, getStorage }) {
+    const LANG_KEY = 'finestella:lang';
+    const urlLang = new URLSearchParams(location.search).get('lang');
+    const lang = pickLang({
+      url: urlLang,
+      saved: (() => { try { return getStorage().getItem(LANG_KEY); } catch { return null; } })(),
+      browser: navigator.languages?.length ? navigator.languages : [navigator.language],
+    });
+    const i18n = create(lang);
+    doc.documentElement.lang = lang;
+    applyStatic(doc, i18n);
+
+    // "English / 日本語" in the footer. The current language is marked to look unpressable; pressing a language
+    // saves it on this device and reopens the page at the same place.
+    for (const a of doc.querySelectorAll('.lang-switch [data-lang]')) {
+      if (a.dataset.lang === lang) a.setAttribute('aria-current', 'true');
+      a.addEventListener('click', (e) => {
+        e.preventDefault();
+        try { getStorage().setItem(LANG_KEY, a.dataset.lang); } catch { /* the URL still switches it */ }
+        const q = new URLSearchParams(location.search);
+        q.set('lang', a.dataset.lang);
+        location.assign(`${location.pathname}?${q}${location.hash}`);
+      });
+    }
+
+    return { LANG: lang, URL_LANG: urlLang, i18n };
+  }
+
+  root.I18n = { MESSAGES, LANGS, pickLang, create, applyStatic, setupPage };
 })(globalThis);

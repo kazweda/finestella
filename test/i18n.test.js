@@ -81,3 +81,70 @@ test('英語の日付・座標・方角・文の書き方', () => {
   assert.equal(en.t('moonPartial', '', '04:30'), 'No moon until 04:30');
   assert.equal(en.t('moonPartial', '01:00', '04:30'), 'No moon 01:00 – 04:30');
 });
+
+// setupPage() に渡すページの代わり。フッターの言語のリンクと、保存先・URL の動きを記録する。
+// storage: 保存先(Map)。null なら、読み書きで例外を投げる(サイトのデータを保存できないとき)。
+function fakePage({ search = '', hash = '', languages = ['ja-JP'], storage = new Map() } = {}) {
+  const links = ['en', 'ja'].map((lang) => {
+    const attrs = {};
+    const listeners = {};
+    return {
+      dataset: { lang },
+      attrs,
+      setAttribute: (name, value) => { attrs[name] = value; },
+      addEventListener: (type, fn) => { listeners[type] = fn; },
+      click() {
+        let prevented = false;
+        listeners.click({ preventDefault: () => { prevented = true; } });
+        return prevented;
+      },
+    };
+  });
+  const assigned = [];
+  const doc = {
+    documentElement: {},
+    querySelectorAll: (selector) => (selector === '.lang-switch [data-lang]' ? links : []),
+  };
+  const location = { pathname: '/', search, hash, assign: (url) => assigned.push(url) };
+  const getStorage = () => {
+    if (!storage) throw new Error('blocked');
+    return { getItem: (k) => storage.get(k) ?? null, setItem: (k, v) => storage.set(k, v) };
+  };
+  const page = I.setupPage({ doc, location, navigator: { languages }, getStorage });
+  return { page, doc, links: Object.fromEntries(links.map((a) => [a.dataset.lang, a])), assigned, storage };
+}
+
+test('ページの言語は URL → 保存した言語 → ブラウザの言語設定の順で決まり、URL の lang だけでは保存しない', () => {
+  const fromUrl = fakePage({ search: '?lang=en', storage: new Map([['finestella:lang', 'ja']]) });
+  assert.equal(fromUrl.page.LANG, 'en');
+  assert.equal(fromUrl.page.URL_LANG, 'en');
+  assert.equal(fromUrl.doc.documentElement.lang, 'en');
+  assert.equal(fromUrl.page.i18n.t('play'), I.create('en').t('play'));
+  assert.equal(fromUrl.storage.get('finestella:lang'), 'ja', 'URL の lang で開いただけでは保存しない');
+
+  assert.equal(fakePage({ languages: ['ja-JP'], storage: new Map([['finestella:lang', 'en']]) }).page.LANG, 'en');
+  const fromBrowser = fakePage({ languages: ['en-US'] });
+  assert.equal(fromBrowser.page.LANG, 'en');
+  assert.equal(fromBrowser.page.URL_LANG, null);
+  assert.equal(fromBrowser.storage.size, 0);
+});
+
+test('今の言語のリンクにだけ aria-current が付く', () => {
+  const { links } = fakePage({ search: '?lang=ja' });
+  assert.equal(links.ja.attrs['aria-current'], 'true');
+  assert.equal(links.en.attrs['aria-current'], undefined);
+});
+
+test('言語のリンクを押すと保存し、URL の lang だけを変えて開き直す', () => {
+  const { links, assigned, storage } = fakePage({ search: '?lat=43.062&lon=141.354&lang=ja&map=ofm', hash: '#x' });
+  assert.equal(links.en.click(), true, 'リンク先(?lang=en)には移らない');
+  assert.equal(storage.get('finestella:lang'), 'en');
+  assert.deepEqual(assigned, ['/?lat=43.062&lon=141.354&lang=en&map=ofm#x']);
+});
+
+test('保存できないときも、言語はブラウザの設定で決まり、リンクで切り替わる', () => {
+  const { page, links, assigned } = fakePage({ languages: ['en-US'], storage: null });
+  assert.equal(page.LANG, 'en');
+  links.ja.click();
+  assert.deepEqual(assigned, ['/?lang=ja']);
+});
