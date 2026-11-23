@@ -43,6 +43,30 @@
     return picked;
   }
 
+  // Open-Meteo's candidates for display. The label is "name, admin1, country".
+  // Different places can share a label (two "Mauna Kea, Hawaii, United States", on Hawaii and Maui), so
+  // only for those, add admin2, then admin3 and admin4, after the name until they can be told apart (#86).
+  // Other labels stay short, so they fit on one line on a phone. separator: t('listSeparator').
+  function openMeteoResults(data, separator) {
+    const places = (data && Array.isArray(data.results) ? data.results : []).map((r) => ({
+      r, parts: [r.name, r.admin1, r.country],
+    }));
+    const labelOf = (p) => p.parts.filter(Boolean).join(separator);
+    for (const level of ['admin2', 'admin3', 'admin4']) {
+      const counts = new Map();
+      for (const p of places) counts.set(labelOf(p), (counts.get(labelOf(p)) || 0) + 1);
+      const shared = places.filter((p) => counts.get(labelOf(p)) > 1);
+      if (!shared.length) break;
+      // Right after the name, so the areas go from small to large (name, admin3, admin2, admin1, country).
+      // Skip one that is already in the label (e.g. admin2 "松本市" for the city "松本市").
+      for (const p of shared) {
+        const area = p.r[level];
+        if (area && !p.parts.includes(area)) p.parts.splice(1, 0, area);
+      }
+    }
+    return places.map((p) => ({ name: p.r.name, label: labelOf(p), lat: p.r.latitude, lon: p.r.longitude }));
+  }
+
   // fetchJson: URL から JSON を取る関数。lang: 画面の言語。t: 文言。rankGsiResults: places.js の並べ替え。
   // logError: 片方の検索が失敗しても続けるときに、失敗を記録する関数。
   function create({ fetchJson, lang, t, rankGsiResults, logError = () => {} }) {
@@ -56,12 +80,7 @@
     async function geocodeOpenMeteo(name) {
       const params = new URLSearchParams({ name, count: LIMIT, language: lang, format: 'json' });
       const data = await fetchJson(`${GEOCODE}?${params}`);
-      return (data.results || []).map((r) => ({
-        name: r.name,
-        label: [r.name, r.admin1, r.country].filter(Boolean).join(t('listSeparator')),
-        lat: r.latitude,
-        lon: r.longitude,
-      }));
+      return openMeteoResults(data, t('listSeparator'));
     }
 
     // 日本の地名だけを探す。海外の地名は Open-Meteo で見つかり、Nominatim への問い合わせ(1秒に1回まで)を減らせるため。
@@ -110,5 +129,5 @@
     return { searchPlaces };
   }
 
-  root.Search = { create, withComma, nominatimResults };
+  root.Search = { create, withComma, nominatimResults, openMeteoResults };
 })(globalThis);
