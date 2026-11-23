@@ -7,24 +7,24 @@
   } = window.Places;
 
   // --- Startup flow (#88) ---
-  // The details of each step are moved into functions under "Parts" at the bottom of this file
-  // (function declarations are hoisted, so they can be called before they appear).
   // 1. Decide the language first, since the constants below use t().
   // 2. Declare the constants and the state shared by the parts.
-  // 3. Set up each part.
-  // 4. Open the first place (openInitialPlace() at the end of this flow, after everything is ready).
+  // 3. Set up each part, then open the first place.
+  // Below the startup flow there are only function declarations (they are hoisted, so they can be
+  // called before they appear). Everything they share is declared here, before the first call.
   const { LANG, URL_LANG, i18n } = setupLanguage();
-  const { t, coordName } = i18n;
+  const { t, coordName, formatTime } = i18n;
 
   const FORECAST_DAYS = 3;
-  const MAX_ZOOM = 11; // 市全体を一望できる範囲まで
+  const MAX_ZOOM = 11; // wide enough to see a whole city
   const OVERLAY_PX = 180;
-  // named: 地名を持つ地点か。地図のタップなど緯度・経度だけの地点は false で、URL に地名を入れない。
+  // named: whether the place has a name. Points chosen by tapping the map have only coordinates,
+  // and their name is not put in the URL.
   const DEFAULT_PLACE = { name: t('defaultPlace'), lat: 35.953, lon: 138.473, named: true };
-  const DEFAULT_ZOOM = 8; // 周りの雲の範囲(約±130km)がおおよそ画面に収まる
-  // 地名検索で選んだときは、その場所がわかるよう町の大きさまで拡大する。周りの雲は縮小して確かめる。
+  const DEFAULT_ZOOM = 8; // the surrounding clouds (about ±130 km) roughly fit on the screen
+  // A place chosen from search opens at town level so it is easy to see; zoom out to check the clouds around it.
   const SEARCH_ZOOM = 10;
-  const MAX_AGE_MS = 30 * 60 * 1000; // これより古い予報は取り直す
+  const MAX_AGE_MS = 30 * 60 * 1000; // refetch forecasts older than this
   // With ?map=ofm, Japanese also uses OpenFreeMap (Japanese names), to compare the base maps (#51).
   // Read once at startup so it is kept when the URL is rewritten (updateUrl(), openInitialPlace()).
   const MAP_PARAM = new URLSearchParams(location.search).get('map') === 'ofm' ? 'map=ofm' : '';
@@ -36,6 +36,16 @@
   ];
   const HOURLY_VARS = ['cloud_cover', ...LAYERS.map((l) => l.key),
     ...LAYERS.flatMap((l) => [`wind_speed_${l.windLevel}`, `wind_direction_${l.windLevel}`])];
+  // Rows of the 3-day timeline (timeline.js), from the top.
+  const TIMELINE_ROWS = [
+    { label: t('layerAll'), key: 'cloud_cover' },
+    { label: t('layerHigh'), key: 'cloud_cover_high' },
+    { label: t('layerMid'), key: 'cloud_cover_mid' },
+    { label: t('layerLow'), key: 'cloud_cover_low' },
+  ];
+  // The cloud layer is Open-Meteo data too, so the map also shows its source and license (CC BY 4.0).
+  // Longer notes (interpolation, the source of the shoreline data) are in the credits below the panel.
+  const CLOUD_ATTRIBUTION = t('cloudAttributionHtml');
 
   // Fetching forecasts and places (api.js), shared by loading, refreshing and searching.
   const { NetworkError, DataError } = window.Api;
@@ -47,7 +57,7 @@
   });
   const { fetchForecast } = api;
 
-  const $ =(id) => document.getElementById(id);
+  const $ = (id) => document.getElementById(id);
   const el = {
     place: $('place'), time: $('time'), status: $('status'), statusText: $('status-text'), retry: $('retry'), total: $('total'), layers: $('layers'),
     flow: $('flow'), windows: $('windows'), timeline: $('timeline'),
@@ -57,11 +67,29 @@
     placeActions: $('place-actions'), gmap: $('gmap'), copyCoords: $('copy-coords'), homeToggle: $('home-toggle'),
   };
 
+  // place is the place the user chose; loadedPlace is the place of the forecast on screen.
+  // They differ while a forecast is loading, and when it failed to load.
   const state = {
     place: null, loadedPlace: null, center: null, grid: null, gridValues: null,
     t: 0, nowIndex: 0, epochs: [], sky: [], dark: [], moonDown: [], moonUp: [], timer: null,
-    fetchedAt: 0, refreshing: false, refreshFailed: false,
+    fetchedAt: 0, refreshing: false, refreshFailed: false, loadFailed: false,
   };
+
+  // What is drawn on the map, shared by selectPlace(), apply() and the rendering.
+  const pinIcon = L.divIcon({ className: 'pin', html: '<div class="arrow" hidden></div><div class="dot"></div>', iconSize: [0, 0] });
+  let marker = null;
+  let overlay = null;
+  let outline = null;
+  const offscreen = document.createElement('canvas');
+  offscreen.width = offscreen.height = OVERLAY_PX;
+  const offCtx = offscreen.getContext('2d');
+  const offImage = offCtx.createImageData(OVERLAY_PX, OVERLAY_PX);
+
+  // Choosing a place and loading its forecast (selectPlace(), updateUrl(), load()).
+  // The place is written to the URL only after it was opened from the URL or chosen by the user.
+  // Opened with nothing in the URL, the URL is left as it is, so the saved home place (#11) keeps
+  // winning over the URL.
+  let urlActive = false;
   let loadController = null;
   let debounceTimer = null;
 
@@ -72,48 +100,21 @@
   const autoRefresh = setupAutoRefresh();
   setupUpdateCheck(autoRefresh);
   setupCopyCoords();
-  // selectPlace() stops the playback when another place is chosen.
+  // selectPlace() stops the playback and resets the "Reload" button when another place is chosen.
   const { stopPlayback } = setupTimeControls();
+  const retry = setupRetry();
   const home = setupHome();
   setupSearch();
+  // Open the first place last, once every part above is ready.
+  openInitialPlace();
 
-  // --- What is drawn on the map ---
-  // The marker and the cloud layer are shared by selectPlace(), apply() and the rendering below.
-
-  // 地図に重ねる雲量も Open-Meteo のデータなので、地図上にも出典とライセンスを示す(CC BY 4.0)。
-  // 補間したことや海岸線データの出所など長い文言は、パネル下部の出典欄に書く。
-  const CLOUD_ATTRIBUTION = t('cloudAttributionHtml');
-
-  const pinIcon = L.divIcon({ className: 'pin', html: '<div class="arrow" hidden></div><div class="dot"></div>', iconSize: [0, 0] });
-  let marker = null;
-  let overlay = null;
-  let outline = null;
-
-  const offscreen = document.createElement('canvas');
-  offscreen.width = offscreen.height = OVERLAY_PX;
-  const offCtx = offscreen.getContext('2d');
-  const offImage = offCtx.createImageData(OVERLAY_PX, OVERLAY_PX);
-
-  // what: 何の取得に失敗したか('forecast' か 'search')。配信元に届かないときの文言を変える。
-  function errorMessage(err, what) {
-    if (err instanceof NetworkError) {
-      if (err.offline) return t('offline');
-      return what === 'search' ? t('searchUnreachable') : `${t('forecastUnreachable')}${t('tryLater')}`;
-    }
-    if (err instanceof DataError) return err.message;
-    return t('unexpected');
-  }
-
-  // --- 目的地の選択 ---
-  // URL に地点を書くのは、URL で開いたときか、利用者が地点を選んだ後だけ。
-  // 何も付けずに開いたままなら URL を変えない(#11 の「保存した初期位置」を URL より優先させないため)。
-  let urlActive = false;
+  // --- Choosing a place ---
   function updateUrl() {
     if (!urlActive || !state.place) return;
     let query = placeQuery({ ...state.place, name: state.place.named ? state.place.name : null }, map.getZoom());
-    query += `&lang=${LANG}`; // 共有した相手も同じ言語で開く(#63)
-    if (MAP_PARAM) query += `&${MAP_PARAM}`; // 背景地図の指定を残す(#51)
-    // 「戻る」の履歴を増やさないよう、置き換える。
+    query += `&lang=${LANG}`; // the recipient of a shared URL sees the same language (#63)
+    if (MAP_PARAM) query += `&${MAP_PARAM}`; // keep the base map (#51)
+    // Replace the entry so "Back" does not walk through every place.
     history.replaceState(null, '', `${location.pathname}${query}`);
   }
 
@@ -131,34 +132,14 @@
     updateUrl();
     showStatus(t('loading'));
 
-    // 連続クリックでAPIを消費しないよう少し待つ。
+    // Wait a little, so quick repeated clicks do not use up the API.
     clearTimeout(debounceTimer);
     if (loadController) loadController.abort();
-    cancelRetry();
+    retry.cancel();
     debounceTimer = setTimeout(() => load(place), 300);
   }
 
-  // --- 読み込みに失敗したときの取り直し ---
-  // 配信元に届かないときは「再読み込み」ボタンを出す。自動では取り直さない。
-  // 配信元が長く止まっていることがあり、見ていない人の分までリクエストを出さないため。
-  // 押したら1分は押せないようにし、リクエストを1分に1回までにする。
-  const RETRY_COOLDOWN_MS = 60 * 1000;
-  let retryCooldown = null;
-
-  function cancelRetry() {
-    clearTimeout(retryCooldown);
-    el.retry.disabled = false;
-  }
-
-  el.retry.addEventListener('click', () => {
-    if (!state.place) return;
-    el.retry.disabled = true;
-    clearTimeout(retryCooldown);
-    retryCooldown = setTimeout(() => { el.retry.disabled = false; }, RETRY_COOLDOWN_MS);
-    showStatus(t('loading'), false, { retry: true });
-    load(state.place, { bust: true });
-  });
-
+  // --- Loading and applying the forecast ---
   async function load(place, { bust = false } = {}) {
     const controller = new AbortController();
     loadController = controller;
@@ -172,7 +153,7 @@
       if (err.name === 'AbortError') return;
       console.error(err);
       state.loadFailed = true;
-      // オフラインは回線が戻ったときに取り直すので、配信元に届かないときだけボタンを出す。
+      // Offline, it reloads when the connection comes back, so the button is only for an unreachable source.
       if (err instanceof NetworkError && !err.offline) {
         showStatus(`${t('forecastUnreachable')}${t('waitAndRetry')}`, true, { retry: true });
       } else {
@@ -181,7 +162,7 @@
     }
   }
 
-  // keepTime: 予報を取り直したときに、見ている時刻を保つ(「現在」を見ていれば新しい「現在」へ)。
+  // keepTime: after refetching, keep the time being shown (or the new "now", if "now" was shown).
   function apply(place, data, { keepTime = false } = {}) {
     const following = isFollowingNow();
     const oldTimes = state.center ? state.center.hourly.time : [];
@@ -193,7 +174,7 @@
     state.refreshFailed = false;
     const { time } = data.center.hourly;
     const offset = data.center.utc_offset_seconds;
-    state.epochs = time.map((t) => localToEpoch(t, offset));
+    state.epochs = time.map((s) => localToEpoch(s, offset));
     computeSky(place);
     state.nowIndex = currentIndex(state.epochs, Date.now());
     const kept = keepTime && !following ? reindexTime(oldTimes, time, state.t) : null;
@@ -211,11 +192,12 @@
     setTime(kept ?? state.nowIndex);
   }
 
-  // 予報の期間(各時刻の前後30分を含む)について、太陽高度から昼・薄明・夜の時間帯を分単位で求める。
-  // 日の出・日の入りは −0.83°、天文薄明は −18°(観測のねらい目の判定と同じ)。
+  // Over the forecast period (including 30 minutes around each hour), find day, twilight and night
+  // from the Sun's altitude, to the minute. Sunrise and sunset are at −0.83°, astronomical twilight
+  // at −18° (the same as for the observing windows).
   function computeSky(place) {
-    const from = state.epochs[0] - 1800000;
-    const to = state.epochs[state.epochs.length - 1] + 1800000;
+    const from = state.epochs[0] - 30 * 60 * 1000;
+    const to = state.epochs[state.epochs.length - 1] + 30 * 60 * 1000;
     const alt = (ms) => sunAltitude(ms, place.lat, place.lon);
     state.dark = intervalsBelow(alt, from, to, -18);
     const cuts = [from, to, ...[-0.83, -18].flatMap((level) => findCrossings(alt, from, to, level).map((x) => x.ms))]
@@ -228,7 +210,7 @@
       state.sky.push({ start, end, kind: a > -0.83 ? 'day' : a > -18 ? 'twilight' : 'night' });
     }
 
-    // 月の出・月の入りは、月の中心の高度 −0.83°(大気差と月の半径の分)で区切る。
+    // Moonrise and moonset are when the Moon's center is at −0.83° (refraction and the Moon's radius).
     const moon = (ms) => moonAltitude(ms, place.lat, place.lon);
     state.moonDown = intervalsBelow(moon, from, to, -0.83);
     state.moonUp = [];
@@ -239,52 +221,53 @@
     }
   }
 
-  // 観測のねらい目に添える月の条件。
-  function moonLabel(w) {
-    const c = moonCondition(w, state.moonDown);
-    const clock = (ms) => formatTime(localIso(ms), false);
-    if (c.kind === 'none') return t('moonNone');
-    if (c.kind === 'up') return t('moonUp', Math.round(moonIllumination((w.start + w.end) / 2) * 100));
-    return t('moonPartial', c.from ? clock(c.from) : '', c.to ? clock(c.to) : '');
-  }
-
   // Whether the user is watching "now" without playing or moving the time.
   // Only then does the display move along with the clock (apply() and setupAutoRefresh()).
   function isFollowingNow() {
     return Boolean(state.center) && !state.timer && Math.round(state.t) === state.nowIndex;
   }
 
-  const clockText = (date) => `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
-
-  function renderFetched() {
-    if (!state.fetchedAt) { el.fetched.hidden = true; return; }
-    const at = new Date(state.fetchedAt);
-    const sameDay = at.toDateString() === new Date().toDateString();
-    const clock = clockText(at);
-    const when = sameDay ? clock : `${i18n.shortDate(at.getMonth() + 1, at.getDate())} ${clock}`;
-    el.fetched.textContent = state.refreshFailed ? t('fetchedStale', when, state.refreshFailed) : t('fetchedAt', when);
-    el.fetched.classList.toggle('stale', Boolean(state.refreshFailed));
-    el.fetched.hidden = false;
+  // --- Status display ---
+  // retry: whether to show the "Reload" button.
+  function showStatus(message, isError = false, { retry: showRetry = false } = {}) {
+    el.statusText.textContent = message;
+    el.retry.hidden = !showRetry;
+    el.status.hidden = false;
+    el.status.classList.toggle('error', isError);
+  }
+  function hideStatus() {
+    el.status.hidden = true;
+    el.retry.hidden = true;
   }
 
-  // --- 描画 ---
-  function setTime(t) {
+  // what: what failed to load ('forecast' or 'search'). The message for an unreachable source differs.
+  function errorMessage(err, what) {
+    if (err instanceof NetworkError) {
+      if (err.offline) return t('offline');
+      return what === 'search' ? t('searchUnreachable') : `${t('forecastUnreachable')}${t('tryLater')}`;
+    }
+    if (err instanceof DataError) return err.message;
+    return t('unexpected');
+  }
+
+  // --- Rendering ---
+  // index: the time to show, as a position in the hourly forecast (fractions while playing).
+  function setTime(index) {
     if (!state.center) return;
-    state.t = t;
-    el.slider.value = Math.round(t);
+    state.t = index;
+    el.slider.value = Math.round(index);
     renderReadout();
     renderOverlay();
     renderTimeline();
   }
 
-  // エポックミリ秒を、目的地の現地時刻の文字列(分単位に丸める)にする。
+  // Epoch milliseconds to the local time string at the destination (rounded to the minute).
   function localIso(ms) {
     const local = Math.round(ms / 60000) * 60000 + state.center.utc_offset_seconds * 1000;
     return new Date(local).toISOString().slice(0, 16);
   }
 
-  const { formatTime } = i18n;
-
+  // The time and the cloud cover at the time being shown.
   function renderReadout() {
     const { hourly, timezone_abbreviation: tz } = state.center;
     const i = Math.round(state.t);
@@ -293,6 +276,12 @@
     const total = hourly.cloud_cover[i];
     el.total.textContent = total == null ? '—' : `${Math.round(total)}%`;
 
+    renderLayers(hourly, i);
+    renderFlow(hourly, i);
+  }
+
+  // A bar for each cloud layer, high to low.
+  function renderLayers(hourly, i) {
     el.layers.replaceChildren(...[...LAYERS].reverse().map((layer) => {
       const value = hourly[layer.key][i];
       const row = document.createElement('div');
@@ -308,8 +297,11 @@
       row.append(dt, bar, dd);
       return row;
     }));
+  }
 
-    // 最も雲の多い層の風を、目的地の雲の動きの目安として示す。
+  // The wind of the cloudiest layer, as a guide to how the clouds at the destination move:
+  // a sentence under the total cloud cover, and the arrow on the marker.
+  function renderFlow(hourly, i) {
     const dominant = LAYERS.reduce((best, layer) => ((hourly[layer.key][i] ?? -1) > (hourly[best.key][i] ?? -1) ? layer : best));
     const dominantValue = hourly[dominant.key][i];
     const arrowEl = marker && marker.getElement() && marker.getElement().querySelector('.arrow');
@@ -339,7 +331,7 @@
         const c = sampleGrid(frame, size, x / (OVERLAY_PX - 1), y / (OVERLAY_PX - 1));
         const p = (y * OVERLAY_PX + x) * 4;
         px[p] = px[p + 1] = px[p + 2] = 255;
-        // 雲量100%でも約78%の不透明度にとどめ、地名や道路が透けて読めるようにする。
+        // Even at 100% cloud, stay at about 78% opacity, so place names and roads show through.
         px[p + 3] = c == null ? 0 : Math.round(200 * Math.pow(c / 100, 0.85));
       }
     }
@@ -347,14 +339,7 @@
     overlay.setUrl(offscreen.toDataURL());
   }
 
-  // 3日間の雲のタイムライン(timeline.js)。
-  const TIMELINE_ROWS = [
-    { label: t('layerAll'), key: 'cloud_cover' },
-    { label: t('layerHigh'), key: 'cloud_cover_high' },
-    { label: t('layerMid'), key: 'cloud_cover_mid' },
-    { label: t('layerLow'), key: 'cloud_cover_low' },
-  ];
-
+  // The 3-day cloud timeline (timeline.js).
   function renderTimeline() {
     window.Timeline.draw(el.timeline, {
       hourly: state.center.hourly, epochs: state.epochs, sky: state.sky, moonUp: state.moonUp, t: state.t,
@@ -383,33 +368,44 @@
       small.textContent = t('avgCloud', Math.round(w.avgCloud));
       const moon = document.createElement('small');
       moon.textContent = moonLabel(w);
-      // 英語は要素の間で改行できないので、改行してよい位置を入れる(日本語は元々どこでも改行できる)。
+      // English cannot break between the elements, so add places where a line may break
+      // (Japanese can break anywhere).
       li.append(btn, document.createElement('wbr'), small, document.createElement('wbr'), moon);
       return li;
     }));
   }
 
-  // --- 操作 ---
-  // retry: 「再読み込み」ボタンを出すか。
-  function showStatus(message, isError = false, { retry: showRetry = false } = {}) {
-    el.statusText.textContent = message;
-    el.retry.hidden = !showRetry;
-    el.status.hidden = false;
-    el.status.classList.toggle('error', isError);
-  }
-  function hideStatus() {
-    el.status.hidden = true;
-    el.retry.hidden = true;
+  // The Moon during an observing window.
+  function moonLabel(w) {
+    const c = moonCondition(w, state.moonDown);
+    const clock = (ms) => formatTime(localIso(ms), false);
+    if (c.kind === 'none') return t('moonNone');
+    if (c.kind === 'up') return t('moonUp', Math.round(moonIllumination((w.start + w.end) / 2) * 100));
+    return t('moonPartial', c.from ? clock(c.from) : '', c.to ? clock(c.to) : '');
   }
 
-  // Open the first place last, once every part above is ready.
-  openInitialPlace();
+  // "Fetched at 21:05", in the time zone of this device.
+  function renderFetched() {
+    if (!state.fetchedAt) { el.fetched.hidden = true; return; }
+    const at = new Date(state.fetchedAt);
+    const sameDay = at.toDateString() === new Date().toDateString();
+    const clock = clockText(at);
+    const when = sameDay ? clock : `${i18n.shortDate(at.getMonth() + 1, at.getDate())} ${clock}`;
+    el.fetched.textContent = state.refreshFailed ? t('fetchedStale', when, state.refreshFailed) : t('fetchedAt', when);
+    el.fetched.classList.toggle('stale', Boolean(state.refreshFailed));
+    el.fetched.hidden = false;
+  }
 
-  // --- 各部分 ---
+  function clockText(date) {
+    return `${date.getHours()}:${String(date.getMinutes()).padStart(2, '0')}`;
+  }
 
-  // 画面の言語(#63)を決めて、画面の文言とフッターの言語の切り替えを用意する。
-  // URL の lang → その端末で選んだ言語 → ブラウザの言語設定の順で決める。
-  // URL の lang は共有された地点を同じ言語で開くためのもので、端末には覚えない(覚えるのは切り替えを押したときだけ)。
+  // --- Parts (in the order of the startup flow) ---
+
+  // Decide the language of the page (#63), fill in its texts, and set up the language switch in the footer.
+  // The language comes from the URL's lang, then the language chosen on this device, then the browser's settings.
+  // The URL's lang is for opening a shared place in the same language, so it is not saved on the device
+  // (only pressing the switch saves it).
   function setupLanguage() {
     const LANG_KEY = 'finestella:lang';
     const urlLang = new URLSearchParams(location.search).get('lang');
@@ -422,12 +418,13 @@
     document.documentElement.lang = lang;
     window.I18n.applyStatic(document, i18n);
 
-    // フッターの「English / 日本語」。今の言語は押せない表示にし、押したら端末に覚えて、同じ地点のまま開き直す。
+    // "English / 日本語" in the footer. The current language is marked and not a link; pressing the other
+    // saves it on this device and reopens the page at the same place.
     for (const a of document.querySelectorAll('.lang-switch [data-lang]')) {
       if (a.dataset.lang === lang) a.setAttribute('aria-current', 'true');
       a.addEventListener('click', (e) => {
         e.preventDefault();
-        try { window.localStorage.setItem(LANG_KEY, a.dataset.lang); } catch { /* 覚えられなくても URL で切り替わる */ }
+        try { window.localStorage.setItem(LANG_KEY, a.dataset.lang); } catch { /* the URL still switches it */ }
         const q = new URLSearchParams(location.search);
         q.set('lang', a.dataset.lang);
         location.assign(`${location.pathname}?${q}${location.hash}`);
@@ -444,7 +441,7 @@
 
     // The base map (basemap.js): OpenFreeMap (English names) in English, GSI Tiles in Japanese (#51).
     // If OpenFreeMap cannot be used, fall back to GSI Tiles.
-    const kind = MAP_PARAM || LANG === 'en' ? 'ofm' : 'gsi';
+    const kind = (MAP_PARAM || LANG === 'en') ? 'ofm' : 'gsi';
     let baseLayer = null;
     const addBaseLayer = async (k) => {
       baseLayer = await window.Basemap.addBaseLayer(map, { kind: k, lang: LANG, t, maxZoom: MAX_ZOOM, creditEl: $('credit-map') });
@@ -563,6 +560,30 @@
     });
   }
 
+  // The button that copies the latitude and longitude of the selected place.
+  // The clipboard is only available over https or on localhost; otherwise the button is hidden.
+  function setupCopyCoords() {
+    const button = el.copyCoords;
+    button.hidden = !(navigator.clipboard && window.isSecureContext);
+    const label = button.textContent;
+    let resetTimer = null;
+    button.addEventListener('click', async () => {
+      if (!state.place) return;
+      let message;
+      try {
+        await navigator.clipboard.writeText(formatCoords(state.place.lat, state.place.lon));
+        message = t('copied');
+      } catch (err) {
+        console.error(err);
+        message = t('copyFailed');
+      }
+      button.textContent = message;
+      // Show the result briefly, then put the original label back.
+      clearTimeout(resetTimer);
+      resetTimer = setTimeout(() => { button.textContent = label; }, 1500);
+    });
+  }
+
   // Choosing the time to show: play/stop, "Now", the slider, and dragging on the 3-day timeline.
   // Any of them except play stops the playback. The controls are disabled until a forecast is loaded.
   // Returns stopPlayback() for selectPlace().
@@ -608,34 +629,35 @@
     return { stopPlayback };
   }
 
-  // The button that copies the latitude and longitude of the selected place.
-  // The clipboard is only available over https or on localhost; otherwise the button is hidden.
-  function setupCopyCoords() {
-    const button = el.copyCoords;
-    button.hidden = !(navigator.clipboard && window.isSecureContext);
-    const label = button.textContent;
-    let resetTimer = null;
-    button.addEventListener('click', async () => {
+  // The "Reload" button, shown when the forecast source cannot be reached. It does not retry by itself:
+  // the source is sometimes down for a long time, and we do not want to send requests for people who
+  // are not looking. After a press it stays disabled for a minute, so it sends at most one request a minute.
+  // Returns cancel() for selectPlace(), which re-enables it when another place is chosen.
+  function setupRetry() {
+    const COOLDOWN_MS = 60 * 1000;
+    let cooldown = null;
+
+    el.retry.addEventListener('click', () => {
       if (!state.place) return;
-      let message;
-      try {
-        await navigator.clipboard.writeText(formatCoords(state.place.lat, state.place.lon));
-        message = t('copied');
-      } catch (err) {
-        console.error(err);
-        message = t('copyFailed');
-      }
-      button.textContent = message;
-      // Show the result briefly, then put the original label back.
-      clearTimeout(resetTimer);
-      resetTimer = setTimeout(() => { button.textContent = label; }, 1500);
+      el.retry.disabled = true;
+      clearTimeout(cooldown);
+      cooldown = setTimeout(() => { el.retry.disabled = false; }, COOLDOWN_MS);
+      showStatus(t('loading'), false, { retry: true });
+      load(state.place, { bust: true });
     });
+
+    return {
+      cancel() {
+        clearTimeout(cooldown);
+        el.retry.disabled = false;
+      },
+    };
   }
 
   // The home place: the place opened when the page has no place in its URL, saved in this browser.
   // If the browser cannot save it (e.g. site data is blocked), the button is hidden and Nobeyama opens.
   // Chrome's incognito mode can save it; it is cleared when the incognito windows are closed.
-  // Returns saved() for the startup flow and renderToggle() for selectPlace().
+  // Returns saved() for openInitialPlace() and renderToggle() for selectPlace().
   function setupHome() {
     const HOME_KEY = 'finestella:home';
     const storage = (() => {
@@ -755,9 +777,11 @@
   // Open the place given in the URL; without one, the saved home place, or else Nobeyama.
   // Also follow the URL hash while the page is open.
   function openInitialPlace() {
-    const openPlace = (p, zoom) => {
+    // A place from the URL or the saved home. Without a name, its coordinates are its name.
+    // fromUser: false keeps the URL as it is (see urlActive).
+    const openPlace = (p, zoom, { fromUser = true } = {}) => {
       const place = { name: p.name || coordName(p.lat, p.lon), lat: p.lat, lon: p.lon, named: Boolean(p.name) };
-      selectPlace(place, { pan: true, zoom }); // rewrites the URL in the current format
+      selectPlace(place, { pan: true, zoom, fromUser }); // with fromUser, rewrites the URL in the current format
     };
 
     // Editing #lat,lon in the address bar does not reload the page (editing after ? does), so listen for it.
@@ -780,9 +804,7 @@
     if (location.search !== keep || location.hash) history.replaceState(null, '', `${location.pathname}${keep}`);
     // Without a place in the URL, open the saved home place, or else Nobeyama. The URL is left as it is.
     const saved = home.saved();
-    const start = saved
-      ? { name: saved.name || coordName(saved.lat, saved.lon), lat: saved.lat, lon: saved.lon, named: Boolean(saved.name) }
-      : DEFAULT_PLACE;
-    selectPlace(start, { pan: true, zoom: saved?.zoom ?? DEFAULT_ZOOM, fromUser: false });
+    if (saved) openPlace(saved, saved.zoom ?? DEFAULT_ZOOM, { fromUser: false });
+    else selectPlace(DEFAULT_PLACE, { pan: true, zoom: DEFAULT_ZOOM, fromUser: false });
   }
 })();
