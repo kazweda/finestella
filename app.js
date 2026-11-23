@@ -153,6 +153,7 @@
       if (err.name === 'AbortError') return;
       console.error(err);
       state.loadFailed = true;
+      clearForecast();
       // Offline, it reloads when the connection comes back, so the button is only for an unreachable source.
       if (err instanceof NetworkError && !err.offline) {
         showStatus(`${t('forecastUnreachable')}${t('waitAndRetry')}`, true, { retry: true });
@@ -160,6 +161,34 @@
         showStatus(errorMessage(err, 'forecast'), true);
       }
     }
+  }
+
+  // Go back to the display before any forecast was loaded (#103). Called when the chosen place failed
+  // to load, so the forecast of the previous place is not shown under the new place's name.
+  // A failed refresh of the same place keeps its forecast instead (refreshIfStale()).
+  function clearForecast() {
+    Object.assign(state, {
+      loadedPlace: null, center: null, grid: null, gridValues: null,
+      t: 0, nowIndex: 0, epochs: [], sky: [], dark: [], moonDown: [], moonUp: [],
+      fetchedAt: 0, refreshFailed: false,
+    });
+
+    el.time.textContent = '—';
+    el.total.textContent = '—';
+    el.layers.replaceChildren();
+    el.flow.textContent = '';
+    el.windows.replaceChildren();
+    el.fetched.hidden = true;
+    el.timeline.getContext('2d').clearRect(0, 0, el.timeline.width, el.timeline.height);
+    el.slider.value = 0;
+    for (const control of [el.slider, el.play, el.now]) control.disabled = true;
+
+    const arrowEl = marker && marker.getElement() && marker.getElement().querySelector('.arrow');
+    if (arrowEl) arrowEl.hidden = true;
+    if (overlay) overlay.remove();
+    if (outline) outline.remove();
+    overlay = null;
+    outline = null;
   }
 
   // keepTime: after refetching, keep the time being shown (or the new "now", if "now" was shown).
