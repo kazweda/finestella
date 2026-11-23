@@ -6,6 +6,10 @@ This English changelog starts at 0.7.0, the first version with an English interf
 
 ## [Unreleased]
 
+### Fixed
+
+- Different places with the same name in search results could not be told apart (for example, "Mauna Kea, Hawaii" listed the summit on the Big Island and a place on Maui as the same two lines). Only for such results, the county or city is now added, as in "Mauna Kea, Hawaii County, Hawaii, United States".
+
 ## [0.8.1] - 2026-11-23
 
 ### Fixed

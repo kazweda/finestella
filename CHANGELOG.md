@@ -4,6 +4,10 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+### 修正
+
+- 地名検索で、別の場所が同じ表示名になって見分けられなかったのを直しました(例:「Mauna Kea, Hawaii」で、ハワイ島の山頂とマウイ島の地名が同じ名前で2つ並んでいた)。表示名が同じ候補だけ、郡や市の名前を足して「Mauna Kea, Hawaii County, Hawaii, United States」のように示します。
+
 ## [0.8.1] - 2026-11-23
 
 ### 修正

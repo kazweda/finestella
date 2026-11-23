@@ -74,6 +74,71 @@ test('国土地理院が使えなくても、Open-Meteo で探す', async () => 
   assert.equal(results.length, 1);
 });
 
+// --- 表示名がまったく同じ候補(#86) ---
+// Open-Meteo の返り値の形(2026-11-23 に確認した値を短くしたもの)。
+const place = (name, admin1, admin2, country, latitude, longitude, more = {}) => ({ name, admin1, admin2, country, latitude, longitude, ...more });
+const labels = (results, sep = ', ') => Search.openMeteoResults({ results }, sep).map((r) => r.label);
+
+test('表示名が同じ候補だけ、名前のあとに admin2 を足して見分ける', () => {
+  assert.deepEqual(labels([
+    place('Mauna Kea', 'Hawaii', 'Hawaii County', 'United States', 19.82, -155.47),
+    place('Mauna Kea', 'Hawaii', 'Maui County', 'United States', 20.92, -156.31),
+    place('Mauna Kea State Park', 'Hawaii', 'Hawaii County', 'United States', 19.75, -155.52),
+  ]), [
+    'Mauna Kea, Hawaii County, Hawaii, United States',
+    'Mauna Kea, Maui County, Hawaii, United States',
+    'Mauna Kea State Park, Hawaii, United States',
+  ]);
+});
+
+test('表示名が重ならなければ、今までどおり「名前, 州・県, 国」のまま', () => {
+  assert.deepEqual(labels([
+    place('Matsumoto', 'Nagano', 'Matsumoto Shi', 'Japan', 36.23, 137.97),
+    place('Matsumoto', 'Okinawa', 'Okinawa Shi', 'Japan', 26.36, 127.82),
+    place('Matsumoto', 'Kumamoto', 'Kuma-gun', 'Japan', 32.4, 130.83, { admin3: 'Itsuki Mura' }),
+  ]), ['Matsumoto, Nagano, Japan', 'Matsumoto, Okinawa, Japan', 'Matsumoto, Kumamoto, Japan']);
+  assert.deepEqual(labels([place('Moab', 'Utah', 'Grand', 'United States', 38.57, -109.55)]), ['Moab, Utah, United States']);
+  assert.deepEqual(labels([place('Tokyo', 'Tokyo', '', 'Japan', 35.69, 139.69)]), ['Tokyo, Tokyo, Japan']);
+});
+
+test('admin2 も同じなら admin3、admin4 の順に足し、小さい区分から並べる', () => {
+  assert.deepEqual(labels([
+    place('Springfield', 'Illinois', 'Sangamon', 'United States', 39.8, -89.64, { admin3: 'Capital Township' }),
+    place('Springfield', 'Illinois', 'Sangamon', 'United States', 39.9, -89.7, { admin3: 'Woodside Township' }),
+  ]), [
+    'Springfield, Capital Township, Sangamon, Illinois, United States',
+    'Springfield, Woodside Township, Sangamon, Illinois, United States',
+  ]);
+});
+
+test('名前と同じ区分は足さず、日本語では「、」で区切る', () => {
+  assert.deepEqual(labels([
+    place('松本市', '長野県', '松本市', '日本', 36.23, 137.97),
+    place('松本市', '長野県', '東筑摩郡', '日本', 36.3, 137.9),
+  ], '、'), ['松本市、長野県、日本', '松本市、東筑摩郡、長野県、日本']);
+});
+
+test('区分がすべて同じか、ない候補は、見分けられないまま並べる', () => {
+  assert.deepEqual(labels([
+    place('Twin Peak', 'Utah', '', 'United States', 38.1, -110.1),
+    place('Twin Peak', 'Utah', '', 'United States', 38.2, -110.2),
+  ]), ['Twin Peak, Utah, United States', 'Twin Peak, Utah, United States']);
+  assert.deepEqual(Search.openMeteoResults({}, ', '), []);
+  assert.deepEqual(Search.openMeteoResults(null, ', '), []);
+});
+
+test('英語の画面で「Mauna Kea, Hawaii」を探すと、2つの Mauna Kea を見分けられる', async () => {
+  const fake = fakeFetchJson({ openMeteo: [
+    place('Mauna Kea', 'Hawaii', 'Hawaii County', 'United States', 19.82, -155.47),
+    place('Mauna Kea', 'Hawaii', 'Maui County', 'United States', 20.92, -156.31),
+  ] });
+  const results = await search('en', fake)('Mauna Kea, Hawaii');
+  assert.deepEqual(results, [
+    { name: 'Mauna Kea', label: 'Mauna Kea, Hawaii County, Hawaii, United States', lat: 19.82, lon: -155.47 },
+    { name: 'Mauna Kea', label: 'Mauna Kea, Maui County, Hawaii, United States', lat: 20.92, lon: -156.31 },
+  ]);
+});
+
 // --- 英語のローマ字の地名(#82) ---
 // Nominatim の返り値の形(2026-11-22 に確認した値を短くしたもの)。
 const nominatimPlace = (name, lat, lon, address) => ({ name, lat: String(lat), lon: String(lon), address: { country: 'Japan', ...address } });
