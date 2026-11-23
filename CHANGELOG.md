@@ -4,7 +4,7 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
-## [0.7.1] - 2026-11-23
+## [0.8.0] - 2026-11-23
 
 ### 追加
 
@@ -130,8 +130,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.7.1...HEAD
-[0.7.1]: https://github.com/kazweda/finestella/releases/tag/v0.7.1
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/kazweda/finestella/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kazweda/finestella/releases/tag/v0.7.0
 [0.6.0]: https://github.com/kazweda/finestella/releases/tag/v0.6.0
 [0.5.1]: https://github.com/kazweda/finestella/releases/tag/v0.5.1

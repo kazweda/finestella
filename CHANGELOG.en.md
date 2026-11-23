@@ -6,7 +6,7 @@ This English changelog starts at 0.7.0, the first version with an English interf
 
 ## [Unreleased]
 
-## [0.7.1] - 2026-11-23
+## [0.8.0] - 2026-11-23
 
 ### Added
 
@@ -33,6 +33,6 @@ This English changelog starts at 0.7.0, the first version with an English interf
 - When the app added to your home screen is opened after being unused for a while (5 minutes or more), it now reloads automatically if a new version is available. Previously, improvements and fixes might not arrive until you fully closed and reopened the app. The location you were viewing stays open.
 - The deployment ID (e.g. `(82d4eef)`) is now shown next to the version number at the bottom of the page, so you can tell which version is running.
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.7.1...HEAD
-[0.7.1]: https://github.com/kazweda/finestella/releases/tag/v0.7.1
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.8.0...HEAD
+[0.8.0]: https://github.com/kazweda/finestella/releases/tag/v0.8.0
 [0.7.0]: https://github.com/kazweda/finestella/releases/tag/v0.7.0

@@ -80,7 +80,7 @@ PR を作るときは、利用者に関わる変更を [CHANGELOG.md](../CHANGEL
    git tag v0.x.y
    git push origin v0.x.y
    ```
-7. **GitHub Release を作る**:本文には CHANGELOG の該当する版の内容を写す
+7. **GitHub Release を作る**:本文には英語版([CHANGELOG.en.md](../CHANGELOG.en.md))の該当する版の内容を写す。0.8.0 から英語にそろえている
    ```sh
    gh release create v0.x.y --title v0.x.y --notes-file <該当する版の内容を書いたファイル>
    ```
