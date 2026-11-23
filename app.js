@@ -1,3 +1,10 @@
+// FineStella's page: the startup flow, and when things happen (choosing a place, loading, refreshing).
+// The details are in the other files, loaded before this one (index.html):
+// - Parts of the page: render.js (drawing the forecast on the panel and the map), search-box.js (the search
+//   box), timeline.js (the 3-day timeline), basemap.js (the base map).
+// - No page, tested in Node: forecast.js (the clouds, the Sun and the Moon), places.js (places and their URLs),
+//   api.js (fetching forecasts and places), search.js (searching place names), update.js (new builds),
+//   i18n.js (the texts; its setupPage() also fills in the page's texts and the language switch).
 (function () {
   'use strict';
 
@@ -8,11 +15,10 @@
     rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
-  // --- Startup flow (#88) ---
-  // 1. Decide the language first (i18n.js: the texts of the page and the language switch in the footer),
-  //    since the constants below use t().
+  // --- Startup flow (#88, #119) ---
+  // 1. Decide the language first (i18n.js), since the constants below use t().
   // 2. Declare the constants and the state shared by the parts.
-  // 3. Set up each part, then open the first place.
+  // 3. Set up each part with its setup…() below, then open the first place.
   // Below the startup flow there are only function declarations (they are hoisted, so they can be
   // called before they appear). Everything they share is declared here, before the first call.
   const { LANG, URL_LANG, i18n } = window.I18n.setupPage({
@@ -53,12 +59,17 @@
 
   const $ = (id) => document.getElementById(id);
   const el = {
-    place: $('place'), time: $('time'), status: $('status'), statusText: $('status-text'), retry: $('retry'), total: $('total'), layers: $('layers'),
-    flow: $('flow'), windows: $('windows'), timeline: $('timeline'),
+    // The chosen place and what can be done with it (selectPlace(), setupCopyCoords(), setupHome()).
+    place: $('place'), placeActions: $('place-actions'), gmap: $('gmap'), copyCoords: $('copy-coords'), homeToggle: $('home-toggle'),
+    // The status line and the "Reload" button (showStatus(), setupRetry()).
+    status: $('status'), statusText: $('status-text'), retry: $('retry'),
+    // Where the forecast is drawn (render.js). The timeline is also dragged (setupTimeControls()).
+    time: $('time'), fetched: $('fetched'), total: $('total'), layers: $('layers'), flow: $('flow'), windows: $('windows'),
+    timeline: $('timeline'), moonPhase: $('moon-phase'),
+    // The time controls (setupTimeControls()). render.js moves the slider along with the time shown.
     slider: $('slider'), play: $('play'), now: $('now'),
+    // The search box (search-box.js).
     search: $('search'), searchInput: $('search-input'), searchResults: $('search-results'),
-    fetched: $('fetched'), moonPhase: $('moon-phase'),
-    placeActions: $('place-actions'), gmap: $('gmap'), copyCoords: $('copy-coords'), homeToggle: $('home-toggle'),
   };
 
   // place is the place the user chose; loadedPlace is the place of the forecast on screen.
@@ -83,10 +94,8 @@
 
   // The map comes first, since the other parts read its zoom or draw on it.
   const map = setupMap();
-  // Drawing the forecast on the panel and the map (render.js). The parts below decide when to draw.
-  const {
-    setTime, renderWindows, renderFetched, renderTimeline, showGrid, clear: clearDisplay,
-  } = window.Render.createRenderer({ el, state, i18n, map, getMarker: () => marker, LAYERS });
+  // How to draw the forecast (render.js). This file decides when: apply(), the time controls, the auto refresh.
+  const { setTime, renderWindows, renderFetched, renderTimeline, showGrid, clear: clearDisplay } = setupRendering();
   // setupUpdateCheck() also follows the current time and refreshes a stale forecast
   // when the page comes back to the foreground, so it takes them from setupAutoRefresh().
   const autoRefresh = setupAutoRefresh();
@@ -205,7 +214,7 @@
     return Boolean(state.center) && !state.timer && Math.round(state.t) === state.nowIndex;
   }
 
-  // --- Status display ---
+  // --- Status display and error messages (errorMessage() is also used by the search box) ---
   // retry: whether to show the "Reload" button.
   function showStatus(message, isError = false, { retry: showRetry = false } = {}) {
     el.statusText.textContent = message;
@@ -266,6 +275,13 @@
     });
 
     return map;
+  }
+
+  // Drawing the forecast on the panel and the map (render.js): the readout, the bars of the layers, the flow
+  // of the clouds and the arrow on the marker, the clouds on the map, the timeline, the Moon, the observing
+  // windows and "Fetched at". Returns the functions apply() and the other parts call.
+  function setupRendering() {
+    return window.Render.createRenderer({ el, state, i18n, map, getMarker: () => marker, LAYERS });
   }
 
   // Keep the forecast up to date while the page stays open:
@@ -329,7 +345,7 @@
     // Show the build ID next to the version number in the footer, so we can tell which build
     // is running even when a deploy does not bump the version.
     if (currentBuild) {
-      const build = document.getElementById('build');
+      const build = $('build');
       build.textContent = `(${currentBuild}) `;
       build.hidden = false;
     }
