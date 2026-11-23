@@ -545,7 +545,6 @@
         refreshIfStale();
       }
     });
-    window.addEventListener('online', refreshIfStale);
 
     return { tick, refreshIfStale };
   }
