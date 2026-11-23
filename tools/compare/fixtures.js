@@ -25,8 +25,20 @@ function cloud(name, lat, lon, h) {
   return clamp(40 + 70 * Math.sin((2 * Math.PI * h) / 31 + lat * 3 + lon * 2 + seed));
 }
 
+// Southern bands with fixed weather, for the cases the pattern above never makes (#118):
+// overcast (no observing window), clear (no notable cloud), and clouds without a wind direction.
+const OVERCAST = (lat) => lat <= -20 && lat > -30;
+const CLEAR = (lat) => lat <= -30 && lat > -40;
+const NO_WIND_DIRECTION = (lat) => lat <= -40 && lat > -50;
+
 function value(name, lat, lon, h) {
-  if (name.startsWith('cloud_cover')) return cloud(name, lat, lon, h);
+  if (name.startsWith('cloud_cover')) {
+    if (OVERCAST(lat)) return 100;
+    if (CLEAR(lat)) return 0;
+    if (NO_WIND_DIRECTION(lat)) return 80;
+    return cloud(name, lat, lon, h);
+  }
+  if (name.startsWith('wind_direction_') && NO_WIND_DIRECTION(lat)) return null;
   if (name.startsWith('wind_speed_')) return 4 + ((h * 3 + Math.round(lat)) % 25);
   if (name.startsWith('wind_direction_')) return (h * 17 + Math.round(lon * 10)) % 360;
   return null;
