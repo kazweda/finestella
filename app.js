@@ -25,6 +25,9 @@
   // 地名検索で選んだときは、その場所がわかるよう町の大きさまで拡大する。周りの雲は縮小して確かめる。
   const SEARCH_ZOOM = 10;
   const MAX_AGE_MS = 30 * 60 * 1000; // これより古い予報は取り直す
+  // With ?map=ofm, Japanese also uses OpenFreeMap (Japanese names), to compare the base maps (#51).
+  // Read once at startup so it is kept when the URL is rewritten (updateUrl(), openInitialPlace()).
+  const MAP_PARAM = new URLSearchParams(location.search).get('map') === 'ofm' ? 'map=ofm' : '';
 
   const LAYERS = [
     { key: 'cloud_cover_low', label: t('layerLow'), windLevel: '850hPa' },
@@ -62,6 +65,8 @@
   let loadController = null;
   let debounceTimer = null;
 
+  // The map comes first, since the other parts read its zoom or draw on it.
+  const map = setupMap();
   // setupUpdateCheck() also follows the current time and refreshes a stale forecast
   // when the page comes back to the foreground, so it takes them from setupAutoRefresh().
   const autoRefresh = setupAutoRefresh();
@@ -72,33 +77,12 @@
   const home = setupHome();
   setupSearch();
 
-  // --- 地図 ---
-  const map = L.map('map', { worldCopyJump: false, maxZoom: MAX_ZOOM }).setView([DEFAULT_PLACE.lat, DEFAULT_PLACE.lon], DEFAULT_ZOOM);
-  // 背景地図。英語は OpenFreeMap(英語の地名)、日本語は地理院タイル(#51)。
-  // 日本語でも ?map=ofm を付けると OpenFreeMap(日本語の地名)にする(一本化の見比べ用)。
-  // URL を書き換えても残るよう、起動時に一度だけ読む。
-  const MAP_PARAM = new URLSearchParams(location.search).get('map') === 'ofm' ? 'map=ofm' : '';
-  const MAP_KIND = MAP_PARAM || LANG === 'en' ? 'ofm' : 'gsi';
-  let baseLayer = null;
-
-  // 背景地図のレイヤーを作って載せる(basemap.js)。OpenFreeMap が使えなければ、地理院タイルで表示する。
-  const addBaseLayer = async (kind) => {
-    baseLayer = await window.Basemap.addBaseLayer(map, { kind, lang: LANG, t, maxZoom: MAX_ZOOM, creditEl: $('credit-map') });
-  };
-  addBaseLayer(MAP_KIND).catch((err) => {
-    console.error(err);
-    if (MAP_KIND !== 'gsi') addBaseLayer('gsi');
-  });
+  // --- What is drawn on the map ---
+  // The marker and the cloud layer are shared by selectPlace(), apply() and the rendering below.
 
   // 地図に重ねる雲量も Open-Meteo のデータなので、地図上にも出典とライセンスを示す(CC BY 4.0)。
   // 補間したことや海岸線データの出所など長い文言は、パネル下部の出典欄に書く。
   const CLOUD_ATTRIBUTION = t('cloudAttributionHtml');
-
-  // 凡例は出典と同じ右下の枠に積む。地図の幅が狭いと出典が折り返して高くなるが、
-  // 同じ枠に入れておけば凡例はその上に押し上げられ、重ならない。
-  const legend = L.control({ position: 'bottomright' });
-  legend.onAdd = () => document.querySelector('.legend');
-  legend.addTo(map);
 
   const pinIcon = L.divIcon({ className: 'pin', html: '<div class="arrow" hidden></div><div class="dot"></div>', iconSize: [0, 0] });
   let marker = null;
@@ -109,18 +93,6 @@
   offscreen.width = offscreen.height = OVERLAY_PX;
   const offCtx = offscreen.getContext('2d');
   const offImage = offCtx.createImageData(OVERLAY_PX, OVERLAY_PX);
-
-  map.on('zoomend', () => {
-    // OpenFreeMap はスタイルで暗い色にしているので、不透明度は変えない。
-    if (baseLayer instanceof L.TileLayer) baseLayer.setOpacity(window.Basemap.gsiOpacity(map.getZoom()));
-    updateUrl();
-  });
-
-  map.on('click', (e) => {
-    const { lat } = e.latlng;
-    const lon = wrapLon(e.latlng.lng);
-    selectPlace({ name: coordName(lat, lon), lat, lon, named: false });
-  });
 
   // what: 何の取得に失敗したか('forecast' か 'search')。配信元に届かないときの文言を変える。
   function errorMessage(err, what) {
@@ -465,6 +437,44 @@
     return { LANG: lang, URL_LANG: urlLang, i18n };
   }
 
+  // The map, its base map and legend, and choosing a place by clicking on it.
+  // It starts at Nobeyama; openInitialPlace() then moves it to the first place.
+  function setupMap() {
+    const map = L.map('map', { worldCopyJump: false, maxZoom: MAX_ZOOM }).setView([DEFAULT_PLACE.lat, DEFAULT_PLACE.lon], DEFAULT_ZOOM);
+
+    // The base map (basemap.js): OpenFreeMap (English names) in English, GSI Tiles in Japanese (#51).
+    // If OpenFreeMap cannot be used, fall back to GSI Tiles.
+    const kind = MAP_PARAM || LANG === 'en' ? 'ofm' : 'gsi';
+    let baseLayer = null;
+    const addBaseLayer = async (k) => {
+      baseLayer = await window.Basemap.addBaseLayer(map, { kind: k, lang: LANG, t, maxZoom: MAX_ZOOM, creditEl: $('credit-map') });
+    };
+    addBaseLayer(kind).catch((err) => {
+      console.error(err);
+      if (kind !== 'gsi') addBaseLayer('gsi');
+    });
+
+    // The legend sits in the same bottom-right corner as the attribution. On a narrow map the
+    // attribution wraps and gets taller, and the legend is pushed up above it instead of overlapping.
+    const legend = L.control({ position: 'bottomright' });
+    legend.onAdd = () => document.querySelector('.legend');
+    legend.addTo(map);
+
+    map.on('zoomend', () => {
+      // OpenFreeMap is darkened by its style, so only GSI Tiles change their opacity with the zoom.
+      if (baseLayer instanceof L.TileLayer) baseLayer.setOpacity(window.Basemap.gsiOpacity(map.getZoom()));
+      updateUrl();
+    });
+
+    map.on('click', (e) => {
+      const { lat } = e.latlng;
+      const lon = wrapLon(e.latlng.lng);
+      selectPlace({ name: coordName(lat, lon), lat, lon, named: false });
+    });
+
+    return map;
+  }
+
   // Keep the forecast up to date while the page stays open:
   // follow the current time, refetch a stale forecast, and reload after coming back online.
   // Everything here runs from timers and events, after the startup flow has finished.
@@ -656,7 +666,6 @@
       button.textContent = isSamePlace(saved, state.place) ? t('unsetHome') : t('setHome');
     }
 
-    // map is declared later in the startup flow, but it is only used after a click.
     button.addEventListener('click', () => {
       if (!storage || !state.place) return;
       try {
