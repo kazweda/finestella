@@ -9,11 +9,12 @@
   const SKY_COLORS = { day: '#d9b36a', twilight: '#4a5f86', night: '#10151f' };
   const LABEL_COLOR = '#9aa8b8';
   const NOW_COLOR = '#ffc27a';
+  const MOON_COLOR = 'rgb(232 228 200)'; // the same as .swatch.moon in style.css
 
   // canvas: 描く先。hourly: 目的地の1時間ごとの予報。epochs: 各時刻のエポックミリ秒。
   // sky: 空の暗さの区間。moonUp: 月が出ている区間。t: 選択中の時刻(時間の番号、小数あり)。
-  // rows: 層の { label, key }。shortDate: (月, 日) → 日付の文字。moonIllumination: 時刻 → 輝面比。
-  function draw(canvas, { hourly, epochs, sky, moonUp, t, rows, shortDate, moonIllumination, dpr = 1 }) {
+  // rows: 層の { label, key }。shortDate: (月, 日) → 日付の文字。
+  function draw(canvas, { hourly, epochs, sky, moonUp, t, rows, shortDate, dpr = 1 }) {
     const rect = canvas.getBoundingClientRect();
     if (!rect.width) return;
     canvas.width = Math.round(rect.width * dpr);
@@ -53,16 +54,13 @@
       ctx.fillRect(x0, dateH, xAt(s.end) - x0, darkH);
     }
 
-    // 月が出ている時間。輝面比が大きいほど明るく塗る(30分ごとに求める)。
+    // When the Moon is up, in one color (#52). A thin moon used to be drawn dark and was lost against
+    // the night; its phase is now shown by the emoji next to the heading instead.
     const moonY = dateH + darkH + 2;
+    ctx.fillStyle = MOON_COLOR;
     for (const u of moonUp) {
-      for (let ms = u.start; ms < u.end; ms += 1800000) {
-        const ms1 = Math.min(ms + 1800000, u.end);
-        const k = moonIllumination((ms + ms1) / 2);
-        ctx.fillStyle = `rgb(232 228 200 / ${(0.2 + 0.8 * k).toFixed(2)})`;
-        const x0 = xAt(ms);
-        ctx.fillRect(x0, moonY, xAt(ms1) - x0, moonH);
-      }
+      const x0 = xAt(u.start);
+      ctx.fillRect(x0, moonY, xAt(u.end) - x0, moonH);
     }
 
     // 雲量のヒートマップ

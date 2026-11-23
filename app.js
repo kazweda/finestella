@@ -2,7 +2,7 @@
   'use strict';
 
   const {
-    buildGrid, valueAt, sampleGrid, cloudAlpha, windFlow, localToEpoch, epochToLocal, moonIllumination, moonCondition,
+    buildGrid, valueAt, sampleGrid, cloudAlpha, windFlow, localToEpoch, epochToLocal, moonIllumination, moonPhaseIndex, moonCondition,
     skyPeriods, findObservingWindows, wrapLon, currentIndex, reindexTime,
   } = window.Forecast;
   const {
@@ -46,6 +46,8 @@
     { label: t('layerMid'), key: 'cloud_cover_mid' },
     { label: t('layerLow'), key: 'cloud_cover_low' },
   ];
+  // The Moon's phase in eight steps (moonPhaseIndex()), as seen from the northern hemisphere.
+  const MOON_EMOJI = ['🌑', '🌒', '🌓', '🌔', '🌕', '🌖', '🌗', '🌘'];
   // The cloud layer is Open-Meteo data too, so the map also shows its source and license (CC BY 4.0).
   // Longer notes (interpolation, the source of the shoreline data) are in the credits below the panel.
   const CLOUD_ATTRIBUTION = t('cloudAttributionHtml');
@@ -66,7 +68,7 @@
     flow: $('flow'), windows: $('windows'), timeline: $('timeline'),
     slider: $('slider'), play: $('play'), now: $('now'),
     search: $('search'), searchInput: $('search-input'), searchResults: $('search-results'),
-    fetched: $('fetched'),
+    fetched: $('fetched'), moonPhase: $('moon-phase'),
     placeActions: $('place-actions'), gmap: $('gmap'), copyCoords: $('copy-coords'), homeToggle: $('home-toggle'),
   };
 
@@ -185,6 +187,7 @@
     el.windows.replaceChildren();
     el.fetched.hidden = true;
     el.timeline.getContext('2d').clearRect(0, 0, el.timeline.width, el.timeline.height);
+    el.moonPhase.hidden = true;
     el.slider.value = 0;
     for (const control of [el.slider, el.play, el.now]) control.disabled = true;
 
@@ -264,6 +267,7 @@
     renderReadout();
     renderOverlay();
     renderTimeline();
+    renderMoonPhase();
   }
 
   // Epoch milliseconds to the local time string at the destination of the forecast on screen.
@@ -346,8 +350,16 @@
   function renderTimeline() {
     window.Timeline.draw(el.timeline, {
       hourly: state.center.hourly, epochs: state.epochs, sky: state.sky, moonUp: state.moonUp, t: state.t,
-      rows: TIMELINE_ROWS, shortDate: i18n.shortDate, moonIllumination, dpr: window.devicePixelRatio || 1,
+      rows: TIMELINE_ROWS, shortDate: i18n.shortDate, dpr: window.devicePixelRatio || 1,
     });
+  }
+
+  // The Moon's phase at the time shown, as an emoji next to the heading of the timeline (#52).
+  function renderMoonPhase() {
+    const ms = state.epochs[0] + state.t * 3600000;
+    el.moonPhase.textContent = MOON_EMOJI[moonPhaseIndex(ms)];
+    el.moonPhase.setAttribute('aria-label', t('moonPhaseLabel', Math.round(moonIllumination(ms) * 100)));
+    el.moonPhase.hidden = false;
   }
 
   function renderWindows() {

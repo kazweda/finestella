@@ -194,6 +194,25 @@ test('月の輝面比は、新月で0に、上弦で半分に、満月で1に近
   assert.ok(F.moonIllumination(jst('2026-11-24T12:00')) > 0.97);
 });
 
+test('月の形は、新月で0°、上弦で90°、満月で180°、下弦で270°に近く、8段階の番号にする', () => {
+  // 公表されている時刻(日本時間、分は丸めた):新月 11/9 16時、上弦 11/17 21時、満月 11/24 23時、下弦 12/1 15:08(06:08 UTC)
+  const near = (a, b, tol) => Math.abs((((a - b) % 360) + 540) % 360 - 180) <= tol;
+  assert.ok(near(F.moonPhase(jst('2026-11-09T16:00')), 0, 6));
+  assert.ok(near(F.moonPhase(jst('2026-11-17T21:00')), 90, 6));
+  assert.ok(near(F.moonPhase(jst('2026-11-24T23:00')), 180, 6));
+  assert.ok(near(F.moonPhase(jst('2026-12-01T15:08')), 270, 1));
+  assert.deepEqual(
+    ['2026-11-09T12:00', '2026-11-13T12:00', '2026-11-17T12:00', '2026-11-21T12:00', '2026-11-24T12:00',
+      '2026-11-28T12:00', '2026-12-02T12:00', '2026-12-05T12:00', '2026-12-09T12:00'].map((d) => F.moonPhaseIndex(jst(d))),
+    [0, 1, 2, 3, 4, 5, 6, 7, 0],
+  );
+  // 輝面比と合っている(満ちていく間も欠けていく間も)
+  for (const d of ['2026-11-13T12:00', '2026-11-28T12:00']) {
+    const phase = F.moonPhase(jst(d)) * Math.PI / 180;
+    assert.ok(Math.abs((1 - Math.cos(phase)) / 2 - F.moonIllumination(jst(d))) < 0.02, d);
+  }
+});
+
 test('月の条件は、時間帯の中で月が沈んでいる最も長い部分を返す', () => {
   const w = { start: 1000 * 60000, end: 1600 * 60000 };
   const min = (m) => m * 60000;
