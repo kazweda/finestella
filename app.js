@@ -100,11 +100,12 @@
   const autoRefresh = setupAutoRefresh();
   setupUpdateCheck(autoRefresh);
   setupCopyCoords();
-  // selectPlace() stops the playback and resets the "Reload" button when another place is chosen.
+  // When another place is chosen, selectPlace() stops the playback, resets the "Reload" button
+  // and closes the search results.
   const { stopPlayback } = setupTimeControls();
   const retry = setupRetry();
   const home = setupHome();
-  setupSearch();
+  const search = setupSearch();
   // Open the first place last, once every part above is ready.
   openInitialPlace();
 
@@ -136,6 +137,7 @@
     clearTimeout(debounceTimer);
     if (loadController) loadController.abort();
     retry.cancel();
+    search.close();
     debounceTimer = setTimeout(() => load(place), 300);
   }
 
@@ -741,6 +743,7 @@
 
   // The search box (search.js). A "latitude, longitude" opens that point;
   // anything else is searched as a place name and the results are listed.
+  // Returns close() for selectPlace().
   function setupSearch() {
     const { searchPlaces } = window.Search.create({
       fetchJson: api.fetchJson, lang: LANG, t, rankGsiResults, logError: console.error,
@@ -767,9 +770,6 @@
       if (!name || name === searchingName) return;
       const coords = parseCoords(name);
       if (coords) {
-        ++searchSeq; // do not show the list if a search in progress returns later
-        searchingName = null;
-        list.hidden = true;
         selectPlace({ name: coordName(coords.lat, coords.lon), ...coords, named: false }, { pan: true, zoom: SEARCH_ZOOM });
         return;
       }
@@ -786,7 +786,6 @@
           btn.type = 'button';
           btn.textContent = r.label;
           btn.addEventListener('click', () => {
-            list.hidden = true;
             selectPlace({ name: r.name, lat: r.lat, lon: r.lon, named: true }, { pan: true, zoom: SEARCH_ZOOM });
           });
           li.append(btn);
@@ -801,6 +800,17 @@
         if (seq === searchSeq) searchingName = null;
       }
     });
+
+    return {
+      // Close the list when a place is chosen in any way (a result, coordinates, the map, the URL), and
+      // ignore a search still in progress, so its late result does not open the list again (#106).
+      // The search box keeps its text.
+      close() {
+        ++searchSeq;
+        searchingName = null;
+        list.hidden = true;
+      },
+    };
   }
 
   // Open the place given in the URL; without one, the saved home place, or else Nobeyama.

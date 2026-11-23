@@ -9,6 +9,7 @@ This English changelog starts at 0.7.0, the first version with an English interf
 ### Fixed
 
 - When the forecast for a newly chosen place failed to load, the cloud cover and the clouds on the map from the previous place stayed on screen under the new place's name. Now the readings show "—" and the clouds are removed from the map. Once the forecast loads, after "Reload" or when the connection comes back, it is shown as usual.
+- The list of search results stayed open over the map when a place was chosen by tapping the map instead. It now closes whenever a place is chosen.
 
 ## [0.8.0] - 2026-11-23
 
