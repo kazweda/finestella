@@ -418,7 +418,7 @@
     document.documentElement.lang = lang;
     window.I18n.applyStatic(document, i18n);
 
-    // "English / 日本語" in the footer. The current language is marked and not a link; pressing the other
+    // "English / 日本語" in the footer. The current language is marked to look unpressable; pressing a language
     // saves it on this device and reopens the page at the same place.
     for (const a of document.querySelectorAll('.lang-switch [data-lang]')) {
       if (a.dataset.lang === lang) a.setAttribute('aria-current', 'true');
