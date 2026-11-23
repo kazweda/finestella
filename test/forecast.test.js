@@ -77,8 +77,29 @@ test('西風の雲は東へ流れる', () => {
   assert.equal(F.compassIndex(359), 0); // 北
 });
 
+test('雲の不透明度は、雲量0%で透明、100%でも約78%(200)にとどめ、欠測は透明にする', () => {
+  assert.equal(F.cloudAlpha(0), 0);
+  assert.equal(F.cloudAlpha(100), 200);
+  assert.equal(F.cloudAlpha(50), Math.round(200 * Math.pow(0.5, 0.85)));
+  assert.equal(F.cloudAlpha(null), 0);
+  assert.equal(F.cloudAlpha(undefined), 0);
+  for (let c = 1; c <= 100; c++) assert.ok(F.cloudAlpha(c) >= F.cloudAlpha(c - 1), `${c}%`);
+});
+
 test('現地時刻をエポックへ変換する', () => {
   assert.equal(F.localToEpoch('2026-11-07T09:00', 32400), Date.UTC(2026, 10, 7, 0, 0));
+});
+
+test('エポックから現地時刻に戻すと、元の文字列になり、分に丸める', () => {
+  for (const offset of [32400, 0, -25200, 19800]) {
+    for (const s of ['2026-11-07T09:00', '2026-12-31T23:59', '2027-01-01T00:00']) {
+      assert.equal(F.epochToLocal(F.localToEpoch(s, offset), offset), s, `${s} ${offset}`);
+    }
+  }
+  const base = F.localToEpoch('2026-11-07T09:00', 32400);
+  assert.equal(F.epochToLocal(base + 29999, 32400), '2026-11-07T09:00');
+  assert.equal(F.epochToLocal(base + 30000, 32400), '2026-11-07T09:01');
+  assert.equal(F.epochToLocal(base - 30001, 32400), '2026-11-07T08:59');
 });
 
 test('太陽高度はAPIの日の出・日の入り時刻と整合する', () => {
@@ -194,6 +215,60 @@ const hours = (fromIso, n) => {
   const times = epochs.map((e) => new Date(e + 32400000).toISOString().slice(0, 16));
   return { times, epochs };
 };
+
+// 72時間分の予報の時刻(エポックミリ秒)。
+const hourlyEpochs = (startMs) => Array.from({ length: 72 }, (_, k) => startMs + k * 3600000);
+// 時間帯が from〜to を隙間なく、重ならずに埋めているか。
+const assertCovers = (parts, from, to, label) => {
+  const sorted = [...parts].sort((a, b) => a.start - b.start);
+  assert.equal(sorted[0].start, from, `${label} の始まり`);
+  assert.equal(sorted[sorted.length - 1].end, to, `${label} の終わり`);
+  for (let k = 0; k < sorted.length; k++) {
+    assert.ok(sorted[k].end > sorted[k].start, `${label} の ${k} 番目が空`);
+    if (k > 0) assert.equal(sorted[k].start, sorted[k - 1].end, `${label} の ${k} 番目の前に隙間か重なり`);
+  }
+};
+
+test('空の時間帯は、予報の期間の前後30分までを、昼・薄明・夜で隙間なく区切る', () => {
+  const epochs = hourlyEpochs(jst('2026-11-13T00:00'));
+  const from = epochs[0] - 1800000;
+  const to = epochs[71] + 1800000;
+  const { sky, dark } = F.skyPeriods(epochs, TOKYO.lat, TOKYO.lon);
+  assertCovers(sky, from, to, 'sky');
+  for (let k = 1; k < sky.length; k++) assert.notEqual(sky[k].kind, sky[k - 1].kind, `${k} 番目が前と同じ`);
+  const count = (kind) => sky.filter((x) => x.kind === kind).length;
+  assert.deepEqual([count('day'), count('twilight'), count('night')], [3, 6, 4]);
+  // 昼の始まりと終わりは、国立天文台の日の出(06:14)・日の入り(16:36)と2分以内で一致する
+  const day = sky.find((x) => x.kind === 'day');
+  assert.ok(Math.abs(day.start - jst('2026-11-13T06:14')) <= 2 * 60000);
+  assert.ok(Math.abs(day.end - jst('2026-11-13T16:36')) <= 2 * 60000);
+  // 暗い時間は、太陽高度が −18° より下の時間で、夜の区切りと一致する
+  assert.deepEqual(dark, F.intervalsBelow(sunAt(TOKYO), from, to, -18));
+  assert.deepEqual(dark, sky.filter((x) => x.kind === 'night').map(({ start, end }) => ({ start, end })));
+});
+
+test('月が出ている時間と沈んでいる時間は、予報の期間を隙間なく埋める', () => {
+  const epochs = hourlyEpochs(jst('2026-11-13T00:00'));
+  const { moonDown, moonUp } = F.skyPeriods(epochs, TOKYO.lat, TOKYO.lon);
+  assert.ok(moonDown.length > 0 && moonUp.length > 0);
+  assertCovers([...moonDown, ...moonUp], epochs[0] - 1800000, epochs[71] + 1800000, 'moon');
+  for (const u of moonUp) assert.ok(F.moonAltitude((u.start + u.end) / 2, TOKYO.lat, TOKYO.lon) > -0.83);
+});
+
+test('白夜では昼だけ、極夜では昼がなく、どちらも期間全体を区切る', () => {
+  const june = hourlyEpochs(Date.UTC(2026, 5, 20));
+  const white = F.skyPeriods(june, 70, 20);
+  assert.deepEqual(white.sky.map((x) => x.kind), ['day']);
+  assert.deepEqual(white.dark, []);
+  assertCovers(white.sky, june[0] - 1800000, june[71] + 1800000, 'white');
+
+  const dec = hourlyEpochs(Date.UTC(2026, 11, 20));
+  const polar = F.skyPeriods(dec, 78, 15);
+  assert.ok(polar.sky.every((x) => x.kind !== 'day'));
+  assert.ok(polar.sky.some((x) => x.kind === 'twilight') && polar.sky.some((x) => x.kind === 'night'));
+  assertCovers(polar.sky, dec[0] - 1800000, dec[71] + 1800000, 'polar');
+  assertCovers([...polar.moonDown, ...polar.moonUp], dec[0] - 1800000, dec[71] + 1800000, 'polar moon');
+});
 
 test('観測のねらい目は、天文薄明の時刻で分単位に区切る', () => {
   const { times, epochs } = hours('2026-11-13T17:00', 13); // 17:00〜翌5:00

@@ -1,7 +1,10 @@
 (function () {
   'use strict';
 
-  const { buildGrid, valueAt, sampleGrid, windFlow, localToEpoch, sunAltitude, moonAltitude, moonIllumination, moonCondition, findCrossings, intervalsBelow, findObservingWindows, wrapLon, currentIndex, reindexTime } = window.Forecast;
+  const {
+    buildGrid, valueAt, sampleGrid, cloudAlpha, windFlow, localToEpoch, epochToLocal, moonIllumination, moonCondition,
+    skyPeriods, findObservingWindows, wrapLon, currentIndex, reindexTime,
+  } = window.Forecast;
   const {
     rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, parseCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
   } = window.Places;
@@ -206,7 +209,7 @@
     const { time } = data.center.hourly;
     const offset = data.center.utc_offset_seconds;
     state.epochs = time.map((s) => localToEpoch(s, offset));
-    computeSky(place);
+    Object.assign(state, skyPeriods(state.epochs, place.lat, place.lon)); // sky, dark, moonDown, moonUp
     state.nowIndex = currentIndex(state.epochs, Date.now());
     const kept = keepTime && !following ? reindexTime(oldTimes, time, state.t) : null;
 
@@ -221,35 +224,6 @@
     renderWindows();
     renderFetched();
     setTime(kept ?? state.nowIndex);
-  }
-
-  // Over the forecast period (including 30 minutes around each hour), find day, twilight and night
-  // from the Sun's altitude, to the minute. Sunrise and sunset are at −0.83°, astronomical twilight
-  // at −18° (the same as for the observing windows).
-  function computeSky(place) {
-    const from = state.epochs[0] - 30 * 60 * 1000;
-    const to = state.epochs[state.epochs.length - 1] + 30 * 60 * 1000;
-    const alt = (ms) => sunAltitude(ms, place.lat, place.lon);
-    state.dark = intervalsBelow(alt, from, to, -18);
-    const cuts = [from, to, ...[-0.83, -18].flatMap((level) => findCrossings(alt, from, to, level).map((x) => x.ms))]
-      .sort((a, b) => a - b);
-    state.sky = [];
-    for (let k = 0; k + 1 < cuts.length; k++) {
-      const [start, end] = [cuts[k], cuts[k + 1]];
-      if (end <= start) continue;
-      const a = alt((start + end) / 2);
-      state.sky.push({ start, end, kind: a > -0.83 ? 'day' : a > -18 ? 'twilight' : 'night' });
-    }
-
-    // Moonrise and moonset are when the Moon's center is at −0.83° (refraction and the Moon's radius).
-    const moon = (ms) => moonAltitude(ms, place.lat, place.lon);
-    state.moonDown = intervalsBelow(moon, from, to, -0.83);
-    state.moonUp = [];
-    let cursor = from;
-    for (const d of [...state.moonDown, { start: to, end: to }]) {
-      if (d.start > cursor) state.moonUp.push({ start: cursor, end: d.start });
-      cursor = d.end;
-    }
   }
 
   // Whether the user is watching "now" without playing or moving the time.
@@ -292,10 +266,9 @@
     renderTimeline();
   }
 
-  // Epoch milliseconds to the local time string at the destination (rounded to the minute).
+  // Epoch milliseconds to the local time string at the destination of the forecast on screen.
   function localIso(ms) {
-    const local = Math.round(ms / 60000) * 60000 + state.center.utc_offset_seconds * 1000;
-    return new Date(local).toISOString().slice(0, 16);
+    return epochToLocal(ms, state.center.utc_offset_seconds);
   }
 
   // The time and the cloud cover at the time being shown.
@@ -362,8 +335,7 @@
         const c = sampleGrid(frame, size, x / (OVERLAY_PX - 1), y / (OVERLAY_PX - 1));
         const p = (y * OVERLAY_PX + x) * 4;
         px[p] = px[p + 1] = px[p + 2] = 255;
-        // Even at 100% cloud, stay at about 78% opacity, so place names and roads show through.
-        px[p + 3] = c == null ? 0 : Math.round(200 * Math.pow(c / 100, 0.85));
+        px[p + 3] = cloudAlpha(c);
       }
     }
     offCtx.putImageData(offImage, 0, 0);
