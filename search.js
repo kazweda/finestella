@@ -67,6 +67,45 @@
     return places.map((p) => ({ name: p.r.name, label: labelOf(p), lat: p.r.latitude, lon: p.r.longitude }));
   }
 
+  // Merge Open-Meteo's results for the same query in Japanese (local) and English (#114).
+  // In Japanese, some places are matched only by their Japanese name, so a Latin query misses them
+  // (the summit of Mauna Kea is "マウナ・ケア山" and "Mauna Kea" does not find it).
+  // Keeps the English order, uses the Japanese entry for a place found in both, and adds the places
+  // found only in Japanese after them. A place found only in English keeps its name, but its areas and
+  // country are put in Japanese when another Japanese entry has the same area (by admin1_id etc.).
+  function mergeLocalized(local, english) {
+    const hasId = (r) => r.id != null;
+    const byId = new Map(local.filter(hasId).map((r) => [r.id, r]));
+    const names = {};
+    for (const key of ['admin1', 'admin2', 'admin3', 'admin4', 'country']) {
+      names[key] = new Map(local.filter((r) => r[`${key}_id`] && r[key]).map((r) => [r[`${key}_id`], r[key]]));
+    }
+    const localize = (r) => {
+      const out = { ...r };
+      for (const key of Object.keys(names)) {
+        const name = names[key].get(r[`${key}_id`]);
+        if (name) out[key] = name;
+      }
+      return out;
+    };
+    const merged = english.map((r) => (hasId(r) && byId.get(r.id)) || localize(r));
+    const seen = new Set(english.filter(hasId).map((r) => r.id));
+    return [...merged, ...local.filter((r) => !hasId(r) || !seen.has(r.id))];
+  }
+
+  // Katakana place names written with or without the middle dot (#114). Open-Meteo's Japanese names
+  // use it ("マウナ・ケア山", "ラ・パルマ") and match only from the start of the name, so "マウナケア" finds nothing.
+  const KATAKANA_ONLY = /^[\p{Script=Katakana}ー・\s]+$/u;
+  const isKatakana = (name) => KATAKANA_ONLY.test(name) && /\p{Script=Katakana}/u.test(name);
+  // "マウナ ケア" → "マウナ・ケア" (like withComma() for "Moab Utah"). null without a space.
+  const withNakaguro = (name) => (/\s/.test(name.trim()) ? name.trim().split(/\s+/).join('・') : null);
+  // The name without middle dots and spaces, to compare "マウナケア" with "マウナ・ケア山".
+  const katakanaKey = (name) => name.replace(/[・\s]/g, '');
+  // When nothing is found, search again with the end cut off, this many times at most, with more results
+  // (a shorter name matches more places). A middle dot right after the first character ("ラ・パルマ") is not reached.
+  const KATAKANA_RETRIES = 3;
+  const KATAKANA_COUNT = 20;
+
   // fetchJson: URL から JSON を取る関数。lang: 画面の言語。t: 文言。rankGsiResults: places.js の並べ替え。
   // logError: 片方の検索が失敗しても続けるときに、失敗を記録する関数。
   function create({ fetchJson, lang, t, rankGsiResults, logError = () => {} }) {
@@ -77,10 +116,51 @@
       return rankGsiResults(data, name);
     }
 
-    async function geocodeOpenMeteo(name) {
-      const params = new URLSearchParams({ name, count: LIMIT, language: lang, format: 'json' });
+    // Open-Meteo's raw results.
+    async function fetchOpenMeteo(name, language = lang, count = LIMIT) {
+      const params = new URLSearchParams({ name, count, language, format: 'json' });
       const data = await fetchJson(`${GEOCODE}?${params}`);
-      return openMeteoResults(data, t('listSeparator'));
+      return data && Array.isArray(data.results) ? data.results : [];
+    }
+
+    const toResults = (raw) => openMeteoResults({ results: raw.slice(0, LIMIT) }, t('listSeparator'));
+
+    async function geocodeOpenMeteo(name) {
+      return toResults(await fetchOpenMeteo(name));
+    }
+
+    // Places abroad in the Japanese UI (#114).
+    // - Latin input ("Mauna Kea"): search in Japanese and English and merge them, since some places are
+    //   matched only by their Japanese name in Japanese. A failed English search is only logged.
+    // - Katakana input: searchKatakana().
+    // - Other Japanese input (kanji, hiragana): in Japanese, as before.
+    async function geocodeAbroadJa(name) {
+      if (!JAPANESE.test(name)) {
+        const [local, english] = await Promise.all([
+          fetchOpenMeteo(name, 'ja'),
+          fetchOpenMeteo(name, 'en').catch((err) => { logError(err); return []; }),
+        ]);
+        return toResults(mergeLocalized(local, english));
+      }
+      if (isKatakana(name)) return toResults(await searchKatakana(name));
+      return toResults(await fetchOpenMeteo(name, 'ja'));
+    }
+
+    // Katakana with or without middle dots. Spaces become middle dots ("マウナ ケア" → "マウナ・ケア").
+    // If nothing is found, cut the end off and search again, keeping only the places whose name without
+    // middle dots starts with the input ("マウナケア" → "マウナ" finds "マウナ・ケア山", but not "マウナボ").
+    async function searchKatakana(name) {
+      const found = await fetchOpenMeteo(withNakaguro(name) || name, 'ja');
+      if (found.length) return found;
+      const key = katakanaKey(name);
+      for (let cut = 1; cut <= KATAKANA_RETRIES; cut++) {
+        const prefix = key.slice(0, key.length - cut);
+        if (prefix.length < 2) break;
+        const matched = (await fetchOpenMeteo(prefix, 'ja', KATAKANA_COUNT))
+          .filter((r) => katakanaKey(r.name || '').startsWith(key));
+        if (matched.length) return matched;
+      }
+      return [];
     }
 
     // 日本の地名だけを探す。海外の地名は Open-Meteo で見つかり、Nominatim への問い合わせ(1秒に1回まで)を減らせるため。
@@ -119,7 +199,7 @@
       }
       if (domestic.some((r) => r.strong)) return domestic;
       // 「ハワイ」で国内の施設名だけが見つかった場合などは、海外の候補を先に並べる。
-      const abroad = await geocodeOpenMeteo(name).catch((err) => {
+      const abroad = await (lang === 'ja' ? geocodeAbroadJa(name) : geocodeOpenMeteo(name)).catch((err) => {
         if (domestic.length) { logError(err); return []; }
         throw err;
       });
@@ -129,5 +209,5 @@
     return { searchPlaces };
   }
 
-  root.Search = { create, withComma, nominatimResults, openMeteoResults };
+  root.Search = { create, withComma, nominatimResults, openMeteoResults, mergeLocalized };
 })(globalThis);
