@@ -67,6 +67,8 @@
   const autoRefresh = setupAutoRefresh();
   setupUpdateCheck(autoRefresh);
   setupCopyCoords();
+  // selectPlace() stops the playback when another place is chosen.
+  const { stopPlayback } = setupTimeControls();
   const home = setupHome();
   setupSearch();
 
@@ -428,42 +430,6 @@
     el.retry.hidden = true;
   }
 
-  function stopPlayback() {
-    if (state.timer) clearInterval(state.timer);
-    state.timer = null;
-    el.play.textContent = t('play');
-  }
-
-  function startPlayback() {
-    el.play.textContent = t('stop');
-    const last = state.center.hourly.time.length - 1;
-    if (state.t >= last) state.t = state.nowIndex;
-    state.timer = setInterval(() => {
-      const next = state.t + 0.25;
-      if (next > last) { stopPlayback(); return; }
-      setTime(next);
-    }, 120);
-  }
-
-  el.play.addEventListener('click', () => (state.timer ? stopPlayback() : startPlayback()));
-  el.now.addEventListener('click', () => { stopPlayback(); setTime(state.nowIndex); });
-  el.slider.addEventListener('input', () => { stopPlayback(); setTime(Number(el.slider.value)); });
-
-  function seekFromPointer(e) {
-    if (!state.center) return;
-    const rect = el.timeline.getBoundingClientRect();
-    stopPlayback();
-    setTime(window.Timeline.indexAt(e.clientX - rect.left, rect.width, state.center.hourly.time.length));
-  }
-  el.timeline.addEventListener('pointerdown', (e) => {
-    el.timeline.setPointerCapture(e.pointerId);
-    seekFromPointer(e);
-  });
-  el.timeline.addEventListener('pointermove', (e) => {
-    if (e.buttons) seekFromPointer(e);
-  });
-  window.addEventListener('resize', () => { if (state.center) renderTimeline(); });
-
   // Open the first place last, once every part above is ready.
   openInitialPlace();
 
@@ -585,6 +551,51 @@
       if (away >= window.Update.CHECK_AFTER_MS && await reloadIfUpdated()) return;
       refreshIfStale();
     });
+  }
+
+  // Choosing the time to show: play/stop, "Now", the slider, and dragging on the 3-day timeline.
+  // Any of them except play stops the playback. The controls are disabled until a forecast is loaded.
+  // Returns stopPlayback() for selectPlace().
+  function setupTimeControls() {
+    function stopPlayback() {
+      if (state.timer) clearInterval(state.timer);
+      state.timer = null;
+      el.play.textContent = t('play');
+    }
+
+    // Advance a quarter of an hour every 120 ms. From the end, start again at "now".
+    function startPlayback() {
+      el.play.textContent = t('stop');
+      const last = state.center.hourly.time.length - 1;
+      if (state.t >= last) state.t = state.nowIndex;
+      state.timer = setInterval(() => {
+        const next = state.t + 0.25;
+        if (next > last) { stopPlayback(); return; }
+        setTime(next);
+      }, 120);
+    }
+
+    el.play.addEventListener('click', () => (state.timer ? stopPlayback() : startPlayback()));
+    el.now.addEventListener('click', () => { stopPlayback(); setTime(state.nowIndex); });
+    el.slider.addEventListener('input', () => { stopPlayback(); setTime(Number(el.slider.value)); });
+
+    function seekFromPointer(e) {
+      if (!state.center) return;
+      const rect = el.timeline.getBoundingClientRect();
+      stopPlayback();
+      setTime(window.Timeline.indexAt(e.clientX - rect.left, rect.width, state.center.hourly.time.length));
+    }
+    el.timeline.addEventListener('pointerdown', (e) => {
+      el.timeline.setPointerCapture(e.pointerId);
+      seekFromPointer(e);
+    });
+    el.timeline.addEventListener('pointermove', (e) => {
+      if (e.buttons) seekFromPointer(e);
+    });
+    // The timeline canvas is drawn at the width of the panel, so redraw it when the window is resized.
+    window.addEventListener('resize', () => { if (state.center) renderTimeline(); });
+
+    return { stopPlayback };
   }
 
   // The button that copies the latitude and longitude of the selected place.
