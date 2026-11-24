@@ -46,7 +46,10 @@ jobs:
             echo "index.html に __BUILD__ が残っている" >&2
             exit 1
           fi
-          test "$(grep -c "?v=${build}" _site/index.html)" -eq 10
+          # Every line that had ?v=__BUILD__ must have the build ID now. Counted from index.html, not a fixed
+          # number, so that adding a file does not stop the deploy. With none at all, grep fails.
+          expected="$(grep -c '?v=__BUILD__' index.html)"
+          test "$(grep -c "?v=${build}" _site/index.html)" -eq "$expected"
       - uses: actions/upload-pages-artifact@v5
 
   deploy:
