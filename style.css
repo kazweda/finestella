@@ -39,6 +39,22 @@ button:disabled { opacity: .45; cursor: default; }
 .search-results button:hover { background: var(--line); }
 .search-results .empty { padding: 7px 11px; color: var(--muted); }
 
+/* The "current location" button (#130). app.js moves it below the zoom buttons, and it looks like them.
+   Its message is placed over the map, to the right of the button. */
+.locate { position: relative; }
+.locate button {
+  display: grid; place-items: center; width: 30px; height: 30px; min-height: 0; padding: 0;
+  color: #000; background: #fff; border: 0; border-radius: 2px;
+}
+.locate button:hover { background: #f4f4f4; }
+.locate button[aria-busy=true] svg { animation: locate-busy 1s ease-in-out infinite alternate; }
+@keyframes locate-busy { to { opacity: .25; } }
+.locate-message { position: absolute; top: -2px; left: 42px; width: max-content; max-width: min(300px, calc(100vw - 72px)); }
+.locate-message:not(:empty) {
+  padding: 5px 10px; font: 13px/1.5 system-ui, -apple-system, "Hiragino Sans", "Noto Sans JP", sans-serif;
+  color: var(--text); background: var(--surface); border: 1px solid var(--line); border-radius: 8px;
+}
+
 /* 凡例は app.js で Leaflet の右下の枠(出典の上)に移す。 */
 .leaflet-container .legend {
   display: flex; align-items: center; gap: 8px; margin: 0 0 6px;
@@ -127,4 +143,10 @@ a { color: var(--accent); }
   .layout { display: block; height: auto; }
   .map-pane { position: sticky; top: 0; z-index: 1; height: 40dvh; }
   .panel { border-left: 0; border-top: 1px solid var(--line); padding: 16px; overflow: visible; }
+}
+
+/* A phone in landscape: the map is very low, so keep the message of the "current location" button on one
+   line, above the attribution. */
+@media (max-width: 800px) and (max-height: 500px) {
+  .locate-message { max-width: calc(100vw - 72px); }
 }

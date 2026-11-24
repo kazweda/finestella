@@ -36,6 +36,10 @@
         <button type="submit" data-i18n="searchButton">検索</button>
         <ul id="search-results" class="search-results" hidden></ul>
       </form>
+      <div id="locate" class="locate leaflet-bar" hidden>
+        <button id="locate-button" type="button" aria-label="現在地の雲を見る" title="現在地の雲を見る" data-i18n-attr="aria-label:locate;title:locate"><svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" aria-hidden="true"><circle cx="12" cy="12" r="6"/><circle cx="12" cy="12" r="1.5" fill="currentColor" stroke="none"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+        <span id="locate-message" class="locate-message" role="status"></span>
+      </div>
       <div class="legend" aria-hidden="true"><span data-i18n="legendMin">雲量 0%</span><i></i><span>100%</span></div>
     </section>
 

@@ -12,7 +12,8 @@
     buildGrid, localToEpoch, skyPeriods, wrapLon, currentIndex, reindexTime,
   } = window.Forecast;
   const {
-    rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl, parseHome, serializeHome, isSamePlace,
+    rankGsiResults, parsePlaceUrl, placeQuery, formatCoords, googleMapsUrl, roundLocation,
+    parseHome, serializeHome, isSamePlace,
   } = window.Places;
 
   // --- Startup flow (#88, #119) ---
@@ -32,7 +33,8 @@
   // and their name is not put in the URL.
   const DEFAULT_PLACE = { name: t('defaultPlace'), lat: 35.953, lon: 138.473, named: true };
   const DEFAULT_ZOOM = 8; // the surrounding clouds (about ±130 km) roughly fit on the screen
-  // A place chosen from search opens at town level so it is easy to see; zoom out to check the clouds around it.
+  // A place chosen from search, or the current location, opens at town level so it is easy to see;
+  // zoom out to check the clouds around it.
   const SEARCH_ZOOM = 10;
   const MAX_AGE_MS = 30 * 60 * 1000; // refetch forecasts older than this
   // With ?map=ofm, Japanese also uses OpenFreeMap (Japanese names), to compare the base maps (#51).
@@ -70,6 +72,8 @@
     slider: $('slider'), play: $('play'), now: $('now'),
     // The search box (search-box.js).
     search: $('search'), searchInput: $('search-input'), searchResults: $('search-results'),
+    // The "current location" button on the map and its message (setupLocate()).
+    locate: $('locate'), locateButton: $('locate-button'), locateMessage: $('locate-message'),
   };
 
   // place is the place the user chose; loadedPlace is the place of the forecast on screen.
@@ -101,12 +105,13 @@
   const autoRefresh = setupAutoRefresh();
   setupUpdateCheck(autoRefresh);
   setupCopyCoords();
-  // When another place is chosen, selectPlace() stops the playback, resets the "Reload" button
-  // and closes the search results.
+  // When another place is chosen, selectPlace() stops the playback, resets the "Reload" button,
+  // closes the search results and stops waiting for the current location.
   const { stopPlayback } = setupTimeControls();
   const retry = setupRetry();
   const home = setupHome();
   const search = setupSearch();
+  const locate = setupLocate();
   // Open the first place last, once every part above is ready.
   openInitialPlace();
 
@@ -139,6 +144,7 @@
     if (loadController) loadController.abort();
     retry.cancel();
     search.close();
+    locate.cancel();
     debounceTimer = setTimeout(() => load(place), 300);
   }
 
@@ -533,6 +539,54 @@
       errorMessage: (err) => errorMessage(err, 'search'),
       choose: (place) => selectPlace(place, { pan: true, zoom: SEARCH_ZOOM }),
     });
+  }
+
+  // The button on the map that opens the current location (#130). The location is read only when it is
+  // pressed, and rounded before it is used (roundLocation()). It is hidden where the browser cannot give a
+  // location (e.g. not https). The message is next to the button, apart from the status line of the panel,
+  // which belongs to the loading of the forecast and its "Reload" button.
+  // Returns cancel() for selectPlace().
+  function setupLocate() {
+    // A rough location is enough, and quicker to get. Reuse one found in the last 5 minutes.
+    const OPTIONS = { enableHighAccuracy: false, timeout: 15 * 1000, maximumAge: 5 * 60 * 1000 };
+    // Each press gets a number, so a late answer does not replace a place chosen after the press.
+    // The button is not disabled meanwhile: some browsers never answer when the permission prompt is dismissed.
+    let locateSeq = 0;
+
+    function show(message, busy = false) {
+      el.locateMessage.textContent = message;
+      el.locateButton.setAttribute('aria-busy', String(busy));
+    }
+
+    if (navigator.geolocation && window.isSecureContext) {
+      const control = L.control({ position: 'topleft' });
+      control.onAdd = () => el.locate;
+      control.addTo(map);
+      L.DomEvent.disableClickPropagation(el.locate); // pressing it must not choose the point below
+      el.locate.hidden = false;
+    }
+
+    el.locateButton.addEventListener('click', () => {
+      const seq = ++locateSeq;
+      show(t('locating'), true);
+      navigator.geolocation.getCurrentPosition(({ coords }) => {
+        if (seq !== locateSeq) return;
+        const p = roundLocation(coords.latitude, coords.longitude);
+        if (!p) { show(t('locateFailed')); return; }
+        selectPlace({ name: coordName(p.lat, p.lon), ...p, named: false }, { pan: true, zoom: SEARCH_ZOOM });
+      }, (err) => {
+        if (seq !== locateSeq) return;
+        console.error(err);
+        show(err.code === err.PERMISSION_DENIED ? t('locateDenied') : t('locateFailed'));
+      }, OPTIONS);
+    });
+
+    return {
+      cancel() {
+        ++locateSeq;
+        show('');
+      },
+    };
   }
 
   // Open the place given in the URL; without one, the saved home place, or else Nobeyama.

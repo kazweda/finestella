@@ -130,6 +130,15 @@
   const googleMapsUrl = (lat, lon) =>
     `https://www.google.com/maps/search/?api=1&query=${lat.toFixed(4)},${lon.toFixed(4)}`;
 
+  // --- The current location (#130) ---
+  // Rounded to 2 decimals (about 1 km), since the place goes into the URL: sharing the URL should not tell
+  // where the user lives. The forecast is fetched with 2 decimals anyway (api.js, #68).
+  // null outside the range the map and the URL can show. "+ 0" turns -0 into 0.
+  function roundLocation(lat, lon) {
+    const place = { lat: Number(lat.toFixed(2)) + 0, lon: Number(lon.toFixed(2)) + 0 };
+    return Math.abs(place.lat) <= 85 && Math.abs(place.lon) <= 180 ? place : null;
+  }
+
   // --- 初期位置 ---
   // ブラウザに保存した初期位置を読む。壊れた値や範囲外の値なら null。
   function parseHome(json) {
@@ -155,6 +164,6 @@
 
   root.Places = {
     rankGsiResults, prefFromCode, parsePlaceUrl, placeQuery, formatCoords, parseCoords, googleMapsUrl,
-    parseHome, serializeHome, isSamePlace,
+    roundLocation, parseHome, serializeHome, isSamePlace,
   };
 })(globalThis);
