@@ -4,6 +4,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+## [0.10.0] - 2026-11-24
+
 ### 追加
 
 - 地図の左上に「現在地」のボタンを足しました。押すと、現在地の雲の予報を表示します。位置を調べるのはボタンを押したときだけで、初回はブラウザが許可を確認します。URL を共有しても自宅などの詳しい場所が伝わらないように、現在地は約1km の細かさに丸めて使います。
@@ -153,7 +155,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.9.0...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.10.0...HEAD
+[0.10.0]: https://github.com/kazweda/finestella/releases/tag/v0.10.0
 [0.9.0]: https://github.com/kazweda/finestella/releases/tag/v0.9.0
 [0.8.1]: https://github.com/kazweda/finestella/releases/tag/v0.8.1
 [0.8.0]: https://github.com/kazweda/finestella/releases/tag/v0.8.0
