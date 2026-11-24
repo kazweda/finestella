@@ -108,6 +108,16 @@ test('緯度・経度を小数点以下4桁にし、Google マップの URL を�
   assert.equal(P.googleMapsUrl(33.94574, 132.84996), 'https://www.google.com/maps/search/?api=1&query=33.9457,132.8500');
 });
 
+test('現在地は小数点以下2桁(約1km)に丸め、地図や URL で扱えない位置は使わない', () => {
+  assert.deepEqual(P.roundLocation(35.681236, 139.767125), { lat: 35.68, lon: 139.77 });
+  assert.deepEqual(P.roundLocation(-33.86882, 151.20929), { lat: -33.87, lon: 151.21 });
+  assert.deepEqual(P.roundLocation(-0.001, -0.001), { lat: 0, lon: 0 });
+  assert.equal(P.roundLocation(89.5, 0), null);
+  // URL に入れて読み戻しても、丸めた位置のまま
+  const p = P.roundLocation(35.681236, 139.767125);
+  assert.deepEqual(P.parsePlaceUrl(P.placeQuery(p, 10), ''), { ...p, name: null, zoom: 10 });
+});
+
 test('保存した初期位置を読み、壊れた値や範囲外の値は無視する', () => {
   const json = P.serializeHome({ lat: 33.9457, lon: 132.85, name: '高縄山' }, 10);
   assert.deepEqual(P.parseHome(json), { lat: 33.9457, lon: 132.85, name: '高縄山', zoom: 10 });
