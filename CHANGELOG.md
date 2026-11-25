@@ -8,10 +8,12 @@ This English changelog starts at 0.7.0, the first version with an English interf
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-25
+
 ### Changed
 
 - On a phone in landscape, the map and the panel are now side by side. On narrower screens they used to be stacked, and the search box and zoom buttons covered most of the low map.
-- In the app added to your home screen, the search box and zoom buttons are now closer to the top. On Android the gap above them is gone, and on iPad and iPhone they sit just below the blurred top edge of the screen.
+- In the app added to your home screen, the search box and zoom buttons are now closer to the top. On Android the gap above them is gone, and on iPad they sit just below the blurred top edge of the screen.
 
 ## [0.10.0] - 2026-11-24
 
@@ -63,7 +65,8 @@ This English changelog starts at 0.7.0, the first version with an English interf
 - When the app added to your home screen is opened after being unused for a while (5 minutes or more), it now reloads automatically if a new version is available. Previously, improvements and fixes might not arrive until you fully closed and reopened the app. The location you were viewing stays open.
 - The deployment ID (e.g. `(82d4eef)`) is now shown next to the version number at the bottom of the page, so you can tell which version is running.
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/kazweda/finestella/releases/tag/v0.11.0
 [0.10.0]: https://github.com/kazweda/finestella/releases/tag/v0.10.0
 [0.9.0]: https://github.com/kazweda/finestella/releases/tag/v0.9.0
 [0.8.1]: https://github.com/kazweda/finestella/releases/tag/v0.8.1

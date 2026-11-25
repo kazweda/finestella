@@ -6,10 +6,12 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 
 ## [Unreleased]
 
+## [0.11.0] - 2026-11-25
+
 ### 変更
 
 - スマートフォンを横向きにしたとき、地図とパネルを左右に並べるようにしました。これまでは画面の幅が狭いと上下に並べていたため、低い地図の大半を検索欄とズームボタンがふさいでいました。
-- ホーム画面に追加したアプリで、検索欄とズームボタンを上に寄せました。Android では上の余白をなくし、iPad などでは画面上端のぼかしのすぐ下に置きます。
+- ホーム画面に追加したアプリで、検索欄とズームボタンを上に寄せました。Android では上の余白をなくし、iPad では画面上端のぼかしのすぐ下に置きます。
 
 ## [0.10.0] - 2026-11-24
 
@@ -162,7 +164,8 @@ FineStella(旧名 Sky Window)の利用者に関わる変更を記録します。
 - Buy Me a Coffee へのリンクを置きました。
 - 画面の下部に、版の番号と更新履歴へのリンクを表示しました。
 
-[Unreleased]: https://github.com/kazweda/finestella/compare/v0.10.0...HEAD
+[Unreleased]: https://github.com/kazweda/finestella/compare/v0.11.0...HEAD
+[0.11.0]: https://github.com/kazweda/finestella/releases/tag/v0.11.0
 [0.10.0]: https://github.com/kazweda/finestella/releases/tag/v0.10.0
 [0.9.0]: https://github.com/kazweda/finestella/releases/tag/v0.9.0
 [0.8.1]: https://github.com/kazweda/finestella/releases/tag/v0.8.1
