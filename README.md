@@ -1,91 +1,102 @@
 # FineStella
 
-目的地と時刻を選び、その地点の雲の量と動きを確認する天体観測向けの試作です。
+[日本語](README.ja.md)
 
-**公開 URL:** https://finestella.com/
+FineStella is a cloud forecast web app for stargazing. Choose a destination and a time, and see how much cloud there will be and how it will move.
 
-旧名は Sky Window です(2026-11 に改名)。旧 URL の https://skywindow.netplan.jp/ は、新しい URL に転送しています。
+**Open the app:** https://finestella.com/
 
-## 名前の由来
+It is still at an early stage (0.x). The interface is available in English and Japanese.
 
-「FineStella」には3つの意味を込めています。
+## Features
 
-- **Fine**:晴れた、綺麗な(英語)
-- **Stella**:星(ラテン語・イタリア語)
-- **Finestra** との響き:イタリア語の「窓」。旧名 Sky Window の「目的地の上空をのぞく窓」を受け継いでいます
+### Clouds
 
-## できること
+- Total, low, mid and high cloud cover at your destination for any time over 3 days, starting today
+- Cloud cover for about 130 km in every direction, drawn on the map; play it forward to watch the clouds move
+- The direction and speed of the clouds, based on the wind near the height of the clouds
 
-- 地図のタップまたは地名検索で目的地を選ぶ(ズームは市全体を一望できる11まで)。検索欄に「緯度, 経度」(例:`35.6812, 139.7671`)を入れると、その地点を開く
-- 地図の「現在地」のボタンで、現在地の予報を表示する(位置を取るのはボタンを押したときだけ。約1km に丸めて使う)
-- 全雲量と下層・中層・上層の雲量を、今日を含む3日間で時刻を指定して表示する
-- 周辺約±130kmの雲量分布を地図に重ね、時間を進めて動きを再生する
-- 雲の高さに近い上空の風から、流れる向きと速さを示す
-- 暗い時間帯に全雲量30%以下が続く「観測のねらい目」を夜ごとに示す。暗い時間帯は天文薄明(太陽高度 −18°)の時刻で分単位に区切る
-- 観測のねらい目に月の条件(月なし/途中で月が沈む・昇る時刻/月あり と輝面比)を添える
-- 空の暗さ(昼・薄明・夜)と月が出ている時間を、雲量のタイムラインの上に帯で示す。月の形(満ち欠け)は、表示中の時刻のものを見出しの横に絵文字で示す。境目は日の出・日の入り(−0.83°)と天文薄明の時刻で分単位に描く
-- ページを開いたままでも「現在」の位置を時刻に合わせて進め、取得から30分以上たった予報は取り直す(取得した時刻を表示する)
-- 地点、地名、ズームを URL に入れ、ブックマークや共有で同じ表示を開ける(例:`?lat=33.946&lon=132.850&name=高縄山&z=10`)
-- 選んだ地点を Google マップで開いたり、緯度・経度をコピーしたりできる
-- 選んだ地点を初期位置として保存し、次に開いたときにその地点を表示する(URL の指定があれば URL を優先する)
-- 日本語と英語で表示する。ブラウザの言語設定で決め、画面下の「English / 日本語」で切り替えられる(選んだ言語は端末に覚え、URL の `lang` があれば URL を優先する)
+### Finding a good time to observe
 
-## 動かし方
+- "Best observing windows" for each night: dark hours when total cloud cover stays at 30% or less. Dark hours are outside astronomical twilight (Sun below −18°), to the minute
+- The Moon in each window: no Moon, the time it sets or rises partway through, or Moon up with the percentage illuminated
+- Bands above the cloud timeline show how dark the sky is (day, twilight, night) and when the Moon is up. The changes are drawn to the minute, at sunrise and sunset (−0.83°) and astronomical twilight. An emoji next to the heading shows the Moon's phase at the time shown
 
-ビルドは不要です。`index.html` をブラウザで開いてください。
+### Choosing a place
 
-公開サイトは GitHub Pages で `main` ブランチをそのまま配信しています。`main` にマージすると数分で反映されます。
+- Tap the map or search by name (the map zooms in to level 11, wide enough to see a whole city). Enter "latitude, longitude" (e.g. `35.6812, 139.7671`) in the search box to open that point
+- The location button on the map ("Show clouds at my location") shows the forecast for where you are. Your location is read only when you press the button, and is rounded to about 1 km
+- Save a place as your home to open it next time (a place in the URL takes priority)
+- The place, its name and the zoom level are kept in the URL, so a bookmark or a shared link opens the same view (e.g. `?lat=19.821&lon=-155.468&name=Mauna+Kea&z=10`)
+- Open the place in Google Maps, or copy its coordinates
 
-## テスト
+### Other
+
+- While the page stays open, "now" follows the clock, and a forecast fetched 30 minutes ago or more is fetched again (the time it was fetched is shown)
+- The language follows your browser settings. Switch with "English / 日本語" at the bottom of the page; your choice is remembered on that device (`lang` in the URL takes priority)
+
+## Limitations
+
+- Only forecasts are shown. There are no live satellite images.
+- Forecasts are hourly, and the surrounding cloud cover is interpolated from a grid about 0.4 degrees apart. The shape and motion of the clouds are only a guide.
+- The direction of the clouds is an estimate from the wind at the layer with the most cloud over the destination.
+- The Japanese base map (GSI Tiles) is shown only up to zoom 8 outside Japan (cloud data is still available). The English base map (OpenFreeMap) covers the whole world.
+- Choosing a place fetches forecasts for up to 50 points (the destination and 49 around it), so the app uses a fairly large number of API calls.
+
+## Data sources and terms
+
+The terms of each provider were checked on 2026-11-11 (see [#2](https://github.com/kazweda/finestella/issues/2)). All of them allow the current use, which is free and without ads. The required credits are shown at the bottom right of the map and at the bottom of the panel.
+
+| Use | Provider | Terms |
+|---|---|---|
+| Forecasts | [Open-Meteo](https://open-meteo.com/) (CC BY 4.0) | The free tier is for non-commercial use (an app without ads is treated as non-commercial). Attribution required |
+| Place search outside Japan | [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api) (data from [GeoNames](https://www.geonames.org/), CC BY 4.0) | Attribution required |
+| Place search in Japan | [Geospatial Information Authority of Japan (GSI)](https://maps.gsi.go.jp/) (the place search of GSI Maps) | Attribution required. The API specification is not public and may change without notice |
+| Place search in Japan (in the English interface, when Open-Meteo finds nothing) | [Nominatim](https://nominatim.org/) (data from [OpenStreetMap](https://www.openstreetmap.org/copyright), ODbL) | Attribution required. The [usage policy](https://operations.osmfoundation.org/policies/nominatim/) allows at most 1 request per second and forbids requests while typing (autocomplete). Requests are sent only when the search button is pressed ([#82](https://github.com/kazweda/finestella/issues/82)) |
+| Base map (Japanese) | [GSI Tiles](https://maps.gsi.go.jp/development/ichiran.html) (pale map) | No application needed. The tiles are modified (for example, colors are inverted), so this must be stated along with the attribution. The source of the shoreline data outside Japan is also shown |
+| Base map (English) | [OpenFreeMap](https://openfreemap.org/) (data from [OpenStreetMap](https://www.openstreetmap.org/copyright), ODbL) | Free, no registration. Attribution to OpenFreeMap, OpenMapTiles and OpenStreetMap required |
+| Base map rendering (English) | [MapLibre GL JS](https://maplibre.org/) (BSD-3-Clause) | Loaded only in English |
+| Map display | [Leaflet](https://leafletjs.com/) (BSD-2-Clause) | The "Leaflet" credit on the map is kept |
+
+**Request limits:** The free tier of Open-Meteo allows 600 requests per minute, 5,000 per hour and 10,000 per day for each IP address. The app gets forecasts through a relay ([worker/](worker/)) that caches each forecast for 10 minutes. When the relay cannot be reached or fails, including when it reaches the limit, the browser requests Open-Meteo directly. If that request also reaches the limit, the app shows "Too many requests".
+
+**Analytics:** The site uses [Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/) to learn the number of visits, countries, referrers and device types. It does not use cookies. Cloudflare Web Analytics does not record query strings ([official FAQ](https://developers.cloudflare.com/web-analytics/faq/)), so the place in the URL (latitude, longitude and name) is not recorded. Data is grouped only by page path (`/`), as checked on the dashboard on 2026-11-14.
+
+Earning money from the app through ads or charges would require a paid Open-Meteo plan. The terms of use of GSI content should also be checked before any commercial use.
+
+## Development
+
+No build is needed: open `index.html` in a browser.
+
+Run the tests with:
 
 ```sh
 node --test
 ```
 
-PR では GitHub Actions でも同じテストを実行します。main にマージすると、テストを通してから GitHub Pages に配信します。Node のバージョンは `.node-version` で手元と CI をそろえています。
+GitHub Actions runs the same tests on pull requests. After a merge to `main`, the tests run again and the site is then deployed to GitHub Pages within a few minutes. `.node-version` keeps the Node version the same locally and in CI.
 
-## 更新履歴とリリース
+- Changes are recorded in [CHANGELOG.md](CHANGELOG.md). The footer of the site shows the version number and a link to the changelog.
+- The release steps are in [docs/RELEASE.md](docs/RELEASE.md) (in Japanese).
 
-- 変更の記録は [CHANGELOG.ja.md](CHANGELOG.ja.md)(英語は [CHANGELOG.md](CHANGELOG.md))にあります。公開サイトのフッターにも、版の番号と更新履歴へのリンクを表示しています。
-- 新しい版を公開する手順は [docs/RELEASE.md](docs/RELEASE.md) にまとめています。
+## About the name
 
-## データと利用条件
+"FineStella" has three meanings:
 
-2026-11-11 に各提供元の規約を確認しました(詳細は #2)。無料・広告なしの今の使い方なら、どれも使えます。必要な出典は、地図の右下とパネル下部の出典欄に表示しています。
+- **Fine**: clear, beautiful (English)
+- **Stella**: star (Latin and Italian)
+- It sounds like **finestra**, Italian for "window". This carries on the idea of the former name, Sky Window: a window for looking into the sky above your destination
 
-| 用途 | 提供元 | 条件 |
-|---|---|---|
-| 予報 | [Open-Meteo](https://open-meteo.com/)(CC BY 4.0) | 無料枠は非商用向け(広告のないアプリは非商用として扱われる)。出典の表示が必要 |
-| 海外の地名検索 | [Open-Meteo](https://open-meteo.com/en/docs/geocoding-api)(データは [GeoNames](https://www.geonames.org/)、CC BY 4.0) | 出典の表示が必要 |
-| 国内の地名検索 | [国土地理院](https://maps.gsi.go.jp/)(地理院地図の地名検索) | 出典の表示が必要。API の仕様は公開されておらず、予告なく変わる可能性がある |
-| 国内の地名検索(英語の画面で、Open-Meteo で見つからないとき) | [Nominatim](https://nominatim.org/)(データは [OpenStreetMap](https://www.openstreetmap.org/copyright)、ODbL) | 出典の表示が必要。[利用規約](https://operations.osmfoundation.org/policies/nominatim/)で1秒に1回まで、入力の途中での問い合わせ(オートコンプリート)は禁止。検索のボタンを押したときだけ問い合わせる(#82) |
-| 背景地図(日本語) | [地理院タイル](https://maps.gsi.go.jp/development/ichiran.html)(淡色地図) | 申請不要。色を反転するなど加工しているため、その旨と出典の表示が必要。日本周辺以外の海岸線データの出所も表示する |
-| 背景地図(英語) | [OpenFreeMap](https://openfreemap.org/)(データは [OpenStreetMap](https://www.openstreetmap.org/copyright)、ODbL) | 無料・登録不要。OpenFreeMap・OpenMapTiles・OpenStreetMap の出典の表示が必要 |
-| 背景地図の表示(英語) | [MapLibre GL JS](https://maplibre.org/)(BSD-3-Clause) | 英語のときだけ読み込む |
-| 地図の表示 | [Leaflet](https://leafletjs.com/)(BSD-2-Clause) | 地図上の「Leaflet」の表示を残す |
+The app was renamed from Sky Window in November 2026. The old URL, https://skywindow.netplan.jp/, redirects to the new one.
 
-**利用回数の上限:** Open-Meteo の無料枠は、IP アドレスごとに1分600回、1時間5,000回、1日10,000回です。利用者のブラウザから直接リクエストするので、上限は利用者ごとにかかります。上限に達すると、画面に「リクエストが多すぎます」と表示されます。
-
-**アクセスの計測:** 訪問数・国・流入元・端末の種類を知るために、[Cloudflare Web Analytics](https://www.cloudflare.com/web-analytics/) を使っています。Cookie は使いません。Cloudflare Web Analytics はクエリ文字列を記録しない([公式 FAQ](https://developers.cloudflare.com/web-analytics/faq/))ため、URL に入る地点(緯度・経度・地名)は記録されません。集計もページのパス(`/`)単位です(2026-11-14 にダッシュボードで確認)。
-
-広告や課金で収益化する場合は、Open-Meteo の有料プランが必要です。国土地理院のコンテンツも、商用利用の前に利用規約を確認してください。
-
-## 現時点の制約
-
-- 表示するのは予報のみで、衛星画像による実況はありません。
-- 予報は1時間刻みで、周辺の雲量は約0.4度間隔の格子から補間しています。雲の形や動きは目安です。
-- 流れる向きは目的地で最も雲の多い層の風から求めた目安です。
-- 日本語の背景地図(地理院タイル)は、日本国外ではズーム8までしか表示されません(雲のデータは取得できます)。英語の背景地図(OpenFreeMap)は世界中を表示します。
-- 目的地を選ぶたびに81地点分を取得するため、APIの利用回数を多めに消費します。
-
-## 開発の支援
+## Support
 
 If you like FineStella, you can support my work here!
 
 ☕ [Buy me a coffee](https://buymeacoffee.com/netplan)
 
-寄付は任意で、見返りはありません。Open-Meteo の規約では、投げ銭を含む任意の寄付は無料枠のまま受け付けられます。
+Donations are voluntary, and nothing is given in return. Under Open-Meteo's terms, voluntary donations, including tips, can be accepted while using the free tier.
 
-## ライセンス
+## License
 
-このリポジトリのコードは [MIT License](LICENSE) で公開しています。予報データや背景地図など外部のコンテンツには、上の「データと利用条件」に書いた各提供元の条件が適用されます。
+The code in this repository is released under the [MIT License](LICENSE). Forecast data, base maps and other external content are subject to the terms of each provider, described in "Data sources and terms" above.
