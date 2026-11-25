@@ -46,7 +46,7 @@ PR では GitHub Actions でも同じテストを実行します。main にマ�
 
 ## 更新履歴とリリース
 
-- 変更の記録は [CHANGELOG.md](CHANGELOG.md) にあります。公開サイトのフッターにも、版の番号と更新履歴へのリンクを表示しています。
+- 変更の記録は [CHANGELOG.ja.md](CHANGELOG.ja.md)(英語は [CHANGELOG.md](CHANGELOG.md))にあります。公開サイトのフッターにも、版の番号と更新履歴へのリンクを表示しています。
 - 新しい版を公開する手順は [docs/RELEASE.md](docs/RELEASE.md) にまとめています。
 
 ## データと利用条件

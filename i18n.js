@@ -37,7 +37,7 @@
       creditMapGsiHtml: `背景地図:${link('https://maps.gsi.go.jp/development/ichiran.html', '地理院タイル')}(淡色地図)の色を反転するなど加工して作成。日本周辺以外の海岸線:Shoreline data is derived from: United States. National Imagery and Mapping Agency.`,
       creditMapOfmHtml: `背景地図:${OFM_CREDIT}`,
       changelog: '更新履歴',
-      changelogUrl: 'https://github.com/kazweda/finestella/blob/main/CHANGELOG.md',
+      changelogUrl: 'https://github.com/kazweda/finestella/blob/main/CHANGELOG.ja.md',
 
       // --- 地図 ---
       defaultPlace: '野辺山',
@@ -124,7 +124,7 @@
       creditMapGsiHtml: `Base map: modified from ${link('https://maps.gsi.go.jp/development/ichiran.html', 'GSI Tiles')} (pale map, colors inverted). Shorelines outside Japan: Shoreline data is derived from: United States. National Imagery and Mapping Agency.`,
       creditMapOfmHtml: `Base map: ${OFM_CREDIT}`,
       changelog: 'Changelog',
-      changelogUrl: 'https://github.com/kazweda/finestella/blob/main/CHANGELOG.en.md',
+      changelogUrl: 'https://github.com/kazweda/finestella/blob/main/CHANGELOG.md',
 
       defaultPlace: 'Nobeyama',
       gsiAttributionHtml: `Modified from ${link('https://maps.gsi.go.jp/development/ichiran.html', 'GSI Tiles')}`,

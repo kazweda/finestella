@@ -37,17 +37,17 @@ ID は配信のたびに自動で変わるので、手で更新する必要は�
 | `MINOR`(0.**1**.0 → 0.**2**.0) | 機能の追加、見た目の大きな変更 | 予報を7日間にする |
 | `PATCH`(0.1.**0** → 0.1.**1**) | 不具合の修正、文言の修正 | 表示の崩れを直す |
 
-番号の正本は [CHANGELOG.md](../CHANGELOG.md) の最新の版です。ほかに書くのは、[index.html](../index.html) のフッターの `FineStella v…` と、英語の更新履歴 [CHANGELOG.en.md](../CHANGELOG.en.md) の最新の版です。食い違うとテストが失敗します。
+番号の正本は、英語の更新履歴 [CHANGELOG.md](../CHANGELOG.md) の最新の版です。ほかに書くのは、[index.html](../index.html) のフッターの `FineStella v…` と、日本語の更新履歴 [CHANGELOG.ja.md](../CHANGELOG.ja.md) の最新の版です。食い違うとテストが失敗します。
 
 ## 日々の変更
 
-PR を作るときは、利用者に関わる変更を [CHANGELOG.md](../CHANGELOG.md) の `## [Unreleased]` に書き足します。英語の画面にも関わる変更は、[CHANGELOG.en.md](../CHANGELOG.en.md) の `## [Unreleased]` にも英語で書き足します。
+PR を作るときは、利用者に関わる変更を、日本語の [CHANGELOG.ja.md](../CHANGELOG.ja.md) の `## [Unreleased]` に書き足します。英語の画面にも関わる変更は、[CHANGELOG.md](../CHANGELOG.md) の `## [Unreleased]` にも英語で書き足します。
 
-- 「追加」「変更」「修正」「削除」の小見出しに分ける
+- 「追加」「変更」「修正」「削除」(英語は Added・Changed・Fixed・Removed)の小見出しに分ける
 - 利用者が読んでわかる言葉で書く(コードの細部は書かない)
 - README やテストだけの変更など、利用者に関わらない変更は書かない
 - 日本語の画面だけに関わる変更(国土地理院の検索、日本語の文言など)は、英語版には書かない。PR の説明に「CHANGELOG は日本語版だけ」のように一言添える
-- 英語版は 0.7.0(英語の画面を公開した版)から書いている。画面下の「Changelog」は、英語の画面では英語版を開く
+- 英語版は 0.7.0(英語の画面を公開した版)から書いている。0.6.0 以前は英訳せず、英語版の冒頭から日本語版に案内している。画面下の「更新履歴」は日本語版を、「Changelog」は英語版を開く
 
 マージした変更はすぐ公開サイトに出ますが、版の番号は次のリリースまで変わりません。
 
@@ -60,7 +60,7 @@ PR を作るときは、利用者に関わる変更を [CHANGELOG.md](../CHANGEL
    git checkout main && git pull
    git checkout -b release/v0.x.y
    ```
-2. **CHANGELOG を更新する**(`CHANGELOG.md` と `CHANGELOG.en.md` の両方。版の番号と日付はそろえる)
+2. **CHANGELOG を更新する**(`CHANGELOG.md` と `CHANGELOG.ja.md` の両方。版の番号と日付はそろえる)
    - `## [Unreleased]` の下の内容を、新しい見出し `## [0.x.y] - YYYY-MM-DD` の下に移す
    - `## [Unreleased]` は空のまま残す
    - 末尾のリンクを更新する
@@ -80,7 +80,7 @@ PR を作るときは、利用者に関わる変更を [CHANGELOG.md](../CHANGEL
    git tag v0.x.y
    git push origin v0.x.y
    ```
-7. **GitHub Release を作る**:本文には英語版([CHANGELOG.en.md](../CHANGELOG.en.md))の該当する版の内容を写す。0.8.0 から英語にそろえている
+7. **GitHub Release を作る**:本文には英語版([CHANGELOG.md](../CHANGELOG.md))の該当する版の内容を写す。0.8.0 から英語にそろえている
    ```sh
    gh release create v0.x.y --title v0.x.y --notes-file <該当する版の内容を書いたファイル>
    ```
