@@ -8,6 +8,11 @@ This English changelog starts at 0.7.0, the first version with an English interf
 
 ## [Unreleased]
 
+### Changed
+
+- On a phone in landscape, the map and the panel are now side by side. On narrower screens they used to be stacked, and the search box and zoom buttons covered most of the low map.
+- In the app added to your home screen, the search box and zoom buttons are now closer to the top. On Android the gap above them is gone, and on iPad and iPhone they sit just below the blurred top edge of the screen.
+
 ## [0.10.0] - 2026-11-24
 
 ### Added
